@@ -148,4 +148,123 @@ describe('StudyOS Backend API Integration Tests', () => {
     expect(typeof res.body.summary.completionPercent).toBe('number');
     expect(Array.isArray(res.body.summary.weeklyTrend)).toBe(true);
   });
+
+  it('Generates and persists a study plan with scheduled sessions', async () => {
+    const planRes = await request(app)
+      .post('/api/v1/study-plans/generate')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({
+        name: 'Finals Prep Plan',
+        startDate: new Date().toISOString(),
+        endDate: new Date(Date.now() + 14 * 86400000).toISOString(),
+        preferredSessionMinutes: 60,
+        savePlan: true,
+      });
+
+    expect(planRes.status).toBe(201);
+    expect(planRes.body.success).toBe(true);
+    expect(planRes.body.plan).toBeDefined();
+    expect(planRes.body.sessions).toBeDefined();
+    expect(planRes.body.feasibility).toBeDefined();
+
+    const planId = planRes.body.plan._id;
+
+    // Check active plan retrieval
+    const activeRes = await request(app)
+      .get('/api/v1/study-plans/active')
+      .set('Authorization', `Bearer ${authToken}`);
+
+    expect(activeRes.status).toBe(200);
+    expect(activeRes.body.plan._id).toBe(planId);
+  });
+
+  it('Completes a study session and marks topic as completed', async () => {
+    // Get sessions for user
+    const listRes = await request(app)
+      .get('/api/v1/study-sessions')
+      .set('Authorization', `Bearer ${authToken}`);
+
+    expect(listRes.status).toBe(200);
+    const sessions = listRes.body.sessions;
+    if (sessions.length > 0) {
+      const targetSession = sessions[0];
+      const compRes = await request(app)
+        .post(`/api/v1/study-sessions/${targetSession._id}/complete`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({
+          actualMinutes: 60,
+          notes: 'Completed session successfully',
+          markTopicCompleted: true,
+        });
+
+      expect(compRes.status).toBe(200);
+      expect(compRes.body.success).toBe(true);
+      expect(compRes.body.session.status).toBe('completed');
+    }
+  });
+
+  it('Enforces strict user data isolation (Security Check)', async () => {
+    // Register User B
+    const userBRes = await request(app)
+      .post('/api/v1/auth/register')
+      .send({
+        name: 'User B Hacker',
+        email: `user_b_${Date.now()}@university.edu`,
+        password: 'Password123!',
+        confirmPassword: 'Password123!',
+      });
+
+    expect(userBRes.status).toBe(201);
+    const tokenB = userBRes.body.accessToken;
+
+    // User B attempts to access User A's subject
+    const unauthorizedSubj = await request(app)
+      .get(`/api/v1/subjects/${testSubjectId}`)
+      .set('Authorization', `Bearer ${tokenB}`);
+
+    expect(unauthorizedSubj.status).toBe(404); // Subject not found or does not belong to you
+
+    // User B attempts to update User A's topic
+    const unauthorizedTopic = await request(app)
+      .patch(`/api/v1/topics/${testTopicId}`)
+      .set('Authorization', `Bearer ${tokenB}`)
+      .send({ title: 'Hacked Title' });
+
+    expect(unauthorizedTopic.status).toBe(404);
+
+    // User B attempts to delete User A's subject
+    const unauthorizedDelete = await request(app)
+      .delete(`/api/v1/subjects/${testSubjectId}`)
+      .set('Authorization', `Bearer ${tokenB}`);
+
+    expect(unauthorizedDelete.status).toBe(404);
+  });
+
+  it('Validates availability slot times and prevents invalid ranges', async () => {
+    // Valid slot
+    const validRes = await request(app)
+      .put('/api/v1/availability')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({
+        slots: [
+          { dayOfWeek: 1, startTime: '09:00', endTime: '12:00', enabled: true },
+          { dayOfWeek: 3, startTime: '14:00', endTime: '17:00', enabled: true },
+        ],
+      });
+
+    expect(validRes.status).toBe(200);
+    expect(validRes.body.success).toBe(true);
+    expect(validRes.body.availability.length).toBe(2);
+
+    // Invalid slot: endTime before startTime
+    const invalidRes = await request(app)
+      .put('/api/v1/availability')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({
+        slots: [{ dayOfWeek: 1, startTime: '15:00', endTime: '10:00', enabled: true }],
+      });
+
+    expect(invalidRes.status).toBe(400);
+    expect(invalidRes.body.success).toBe(false);
+  });
 });

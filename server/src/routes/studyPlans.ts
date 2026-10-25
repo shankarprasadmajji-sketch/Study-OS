@@ -12,6 +12,7 @@ const router = Router();
 router.use(requireAuth);
 
 router.get('/', studyPlanController.getActivePlan);
+router.get('/active', studyPlanController.getActivePlan);
 router.post('/generate', validateBody(generatePlanSchema), studyPlanController.generatePlan);
 router.get('/:planId', studyPlanController.getPlanById);
 router.post('/:planId/recover', validateBody(recoverSessionSchema), studyPlanController.recoverSession);
