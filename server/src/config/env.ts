@@ -1,8 +1,20 @@
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
+// Multi-location .env resolution
+const candidates = [
+  path.resolve(process.cwd(), '.env'),
+  path.resolve(process.cwd(), 'server', '.env'),
+  path.resolve(__dirname, '..', '..', '.env'),
+  path.resolve(__dirname, '..', '.env'),
+];
 
-// Load environment variables from .env
-dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+for (const envPath of candidates) {
+  if (fs.existsSync(envPath)) {
+    dotenv.config({ path: envPath });
+    break;
+  }
+}
 
 export const config = {
   port: parseInt(process.env.PORT || '5000', 10),

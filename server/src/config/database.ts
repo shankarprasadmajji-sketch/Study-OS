@@ -16,6 +16,23 @@ let databaseState: DatabaseState = {
   stateText: 'unconfigured',
 };
 
+// Helper to auto-encode special characters in password and format target database
+export function normalizeMongoUri(rawUri: string): string {
+  if (!rawUri) return '';
+  const trimmed = rawUri.trim();
+  const match = trimmed.match(/^(mongodb(?:\+srv)?:\/\/)([^:]+):(.+)@([^@\/]+)(\/.*)?$/);
+  if (match) {
+    const [, protocol, username, rawPassword, host, rest = ''] = match;
+    const encodedPassword = encodeURIComponent(decodeURIComponent(rawPassword));
+    const databasePart =
+      !rest || rest === '/' || rest.startsWith('/?')
+        ? `/studyos${rest.startsWith('/?') ? rest.substring(1) : (rest.includes('?') ? '' : '?retryWrites=true&w=majority')}`
+        : rest;
+    return `${protocol}${username}:${encodedPassword}@${host}${databasePart}`;
+  }
+  return trimmed;
+}
+
 // Safe helper to strip sensitive credentials from connection strings for logging
 export function sanitizeMongoUri(uri: string): string {
   try {
@@ -28,7 +45,7 @@ export function sanitizeMongoUri(uri: string): string {
 }
 
 export async function connectDatabase(): Promise<DatabaseState> {
-  const uri = config.mongodbUri;
+  const uri = normalizeMongoUri(config.mongodbUri);
 
   if (!uri) {
     console.log('[Database] MONGODB_URI is not set in environment.');
