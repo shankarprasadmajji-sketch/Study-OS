@@ -15,6 +15,8 @@ export interface ITopic extends Document {
   status: TopicStatus;
   position: number;
   prerequisiteTopicIds: mongoose.Types.ObjectId[];
+  completedAt?: Date | null;
+  actualMinutes?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -70,6 +72,14 @@ const TopicSchema = new Schema<ITopic>(
       index: true,
     },
     position: {
+      type: Number,
+      default: 0,
+    },
+    completedAt: {
+      type: Date,
+      default: null,
+    },
+    actualMinutes: {
       type: Number,
       default: 0,
     },

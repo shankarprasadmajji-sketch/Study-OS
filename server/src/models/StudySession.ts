@@ -23,6 +23,7 @@ export interface IStudySession extends Document {
   status: SessionStatus;
   sessionType: SessionType;
   completedAt?: Date | null;
+  isOnTime?: boolean;
   notes?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -87,6 +88,10 @@ const StudySessionSchema = new Schema<IStudySession>(
     completedAt: {
       type: Date,
       default: null,
+    },
+    isOnTime: {
+      type: Boolean,
+      default: true,
     },
     notes: {
       type: String,

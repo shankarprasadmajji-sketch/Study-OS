@@ -37,6 +37,7 @@ export async function apiRequest<T = any>(
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    'X-Timezone': Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
     ...(options.headers as Record<string, string>),
   };
 
@@ -44,20 +45,33 @@ export async function apiRequest<T = any>(
     headers['Authorization'] = `Bearer ${authToken}`;
   }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000); // 15-second timeout
+
   const config: RequestInit = {
     ...options,
     headers,
     credentials: 'include', // Include HttpOnly cookies
+    signal: options.signal || controller.signal,
   };
 
   let response: Response;
   try {
     response = await fetch(url, config);
   } catch (netErr: any) {
+    clearTimeout(timeoutId);
+    if (netErr.name === 'AbortError') {
+      throw new ApiError(
+        'Request to StudyOS backend server timed out after 15 seconds. Please ensure the backend is responsive.',
+        408
+      );
+    }
     throw new ApiError(
       'Unable to connect to StudyOS backend server. Please check your network connection or ensure the backend server is running.',
       0
     );
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   let data: any = {};
@@ -75,7 +89,17 @@ export async function apiRequest<T = any>(
     if (response.status === 401 && !endpoint.includes('/auth/login')) {
       setApiToken(null);
     }
-    const message = data.error || data.message || `Request failed with status ${response.status}`;
+    let message = data.error || data.message;
+    if (!message && data.details) {
+      if (Array.isArray(data.details)) {
+        message = data.details.map((d: any) => d.message || d.field || d).join(', ');
+      } else if (typeof data.details === 'string') {
+        message = data.details;
+      }
+    }
+    if (!message) {
+      message = `Request failed with status ${response.status}`;
+    }
     throw new ApiError(message, response.status, data.details);
   }
 

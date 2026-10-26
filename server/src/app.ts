@@ -20,10 +20,38 @@ export function createApp(): Application {
   // CORS configuration
   app.use(
     cors({
-      origin: [config.clientUrl, 'http://localhost:5173', 'http://127.0.0.1:5173'],
+      origin: (origin, callback) => {
+        // Allow requests with no origin (such as mobile apps, curl, or same-origin)
+        if (!origin) return callback(null, true);
+
+        // Allow localhost, 127.0.0.1, and private LAN origins during development
+        if (config.nodeEnv !== 'production') {
+          if (
+            origin.startsWith('http://localhost:') ||
+            origin.startsWith('http://127.0.0.1:') ||
+            origin.startsWith('http://10.') ||
+            origin.startsWith('http://192.168.') ||
+            origin.startsWith('http://172.')
+          ) {
+            return callback(null, true);
+          }
+        }
+
+        const allowedOrigins = [
+          config.clientUrl,
+          'http://localhost:5173',
+          'http://127.0.0.1:5173',
+          'http://localhost:5174',
+        ];
+        if (allowedOrigins.includes(origin)) {
+          return callback(null, true);
+        }
+
+        return callback(new Error(`Origin ${origin} not allowed by CORS`));
+      },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Timezone'],
     })
   );
 

@@ -1,9 +1,11 @@
 import { Response } from 'express';
 import { z } from 'zod';
+import { isBefore } from 'date-fns';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { dataStore } from '../services/dataStore.js';
 import { generateStudyPlan } from '../services/scheduler.js';
 import { recoverMissedSession } from '../services/recovery.js';
+import { isDateOnlyInPast, toDate } from '../utils/dateValidation.js';
 
 export const generatePlanSchema = z.object({
   name: z.string().default('My Smart Study Plan'),
@@ -46,6 +48,27 @@ export const studyPlanController = {
   async generatePlan(req: AuthenticatedRequest, res: Response): Promise<void> {
     const userId = req.user!.userId;
     const { name, startDate, endDate, preferredSessionMinutes, breakMinutes, savePlan } = req.body;
+
+    const user = await dataStore.findUserById(userId);
+    const timezone = (req.headers['x-timezone'] as string) || user?.timezone || 'UTC';
+
+    if (isDateOnlyInPast(startDate, timezone)) {
+      res.status(400).json({
+        success: false,
+        error: 'Plan start date cannot be in the past. Please select today or a future date.',
+      });
+      return;
+    }
+
+    const sDate = toDate(startDate);
+    const eDate = toDate(endDate);
+    if (isBefore(eDate, sDate)) {
+      res.status(400).json({
+        success: false,
+        error: 'End date must be on or after start date.',
+      });
+      return;
+    }
 
     const subjects = await dataStore.findSubjectsByUserId(userId);
     const topics = await dataStore.findTopicsByUserId(userId);

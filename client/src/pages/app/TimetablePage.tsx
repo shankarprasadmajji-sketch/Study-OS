@@ -9,18 +9,20 @@ import {
   RotateCcw,
   CalendarDays,
   Plus,
+  AlertCircle,
 } from 'lucide-react';
 import {
   format,
   addDays,
   subDays,
+  addMinutes,
   startOfWeek,
   endOfWeek,
   isSameDay,
   parseISO,
 } from 'date-fns';
 import { apiRequest } from '../../api/client.js';
-import { StudySession } from '../../types/index.js';
+import { StudySession, Subject, Topic } from '../../types/index.js';
 import { Card, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card.js';
 import { Button } from '../../components/ui/Button.js';
 import { Badge } from '../../components/ui/Badge.js';
@@ -33,12 +35,29 @@ export const TimetablePage: React.FC = () => {
   const [sessions, setSessions] = useState<StudySession[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Reschedule Modal
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
+
+  // Reschedule Modal State
   const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false);
   const [selectedSession, setSelectedSession] = useState<StudySession | null>(null);
   const [rescheduleDate, setRescheduleDate] = useState('');
   const [rescheduleStart, setRescheduleStart] = useState('');
   const [rescheduleEnd, setRescheduleEnd] = useState('');
+  const [rescheduleError, setRescheduleError] = useState<string | null>(null);
+
+  // Create Session Modal State
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [availableTopics, setAvailableTopics] = useState<Topic[]>([]);
+  const [createFormData, setCreateFormData] = useState({
+    subjectId: '',
+    topicId: '',
+    date: format(new Date(), 'yyyy-MM-dd'),
+    startTime: format(addMinutes(new Date(), 60), 'HH:mm'),
+    endTime: format(addMinutes(new Date(), 110), 'HH:mm'),
+    notes: '',
+  });
 
   const fetchSessions = async () => {
     setLoading(true);
@@ -52,8 +71,18 @@ export const TimetablePage: React.FC = () => {
     }
   };
 
+  const fetchSubjects = async () => {
+    try {
+      const res = await apiRequest<{ subjects: Subject[] }>('/subjects');
+      setSubjects(res.subjects || []);
+    } catch (err) {
+      console.error('Failed to load subjects:', err);
+    }
+  };
+
   useEffect(() => {
     fetchSessions();
+    fetchSubjects();
   }, []);
 
   const handlePrev = () => {
@@ -91,6 +120,7 @@ export const TimetablePage: React.FC = () => {
 
   const openRescheduleModal = (sess: StudySession) => {
     setSelectedSession(sess);
+    setRescheduleError(null);
     const start = new Date(sess.scheduledStart);
     const end = new Date(sess.scheduledEnd);
     setRescheduleDate(format(start, 'yyyy-MM-dd'));
@@ -101,12 +131,23 @@ export const TimetablePage: React.FC = () => {
 
   const handleRescheduleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setRescheduleError(null);
     if (!selectedSession || !rescheduleDate || !rescheduleStart || !rescheduleEnd) return;
 
-    try {
-      const startDateTime = new Date(`${rescheduleDate}T${rescheduleStart}:00`);
-      const endDateTime = new Date(`${rescheduleDate}T${rescheduleEnd}:00`);
+    const startDateTime = new Date(`${rescheduleDate}T${rescheduleStart}:00`);
+    const endDateTime = new Date(`${rescheduleDate}T${rescheduleEnd}:00`);
 
+    if (startDateTime.getTime() < Date.now() - 30000) {
+      setRescheduleError('Rescheduled session start time cannot be in the past. Please select a future date and time.');
+      return;
+    }
+
+    if (endDateTime.getTime() <= startDateTime.getTime()) {
+      setRescheduleError('Session end time must be later than the start time.');
+      return;
+    }
+
+    try {
       await apiRequest(`/study-sessions/${selectedSession._id}/reschedule`, {
         method: 'POST',
         body: JSON.stringify({
@@ -117,8 +158,93 @@ export const TimetablePage: React.FC = () => {
 
       setRescheduleModalOpen(false);
       fetchSessions();
-    } catch (err) {
+    } catch (err: any) {
+      setRescheduleError(err.message || 'Failed to reschedule session.');
       console.error('Failed to reschedule session:', err);
+    }
+  };
+
+  const openCreateModal = () => {
+    setCreateError(null);
+    fetchSubjects();
+    const now = new Date();
+    const start = addMinutes(now, 30);
+    const end = addMinutes(start, 50);
+
+    setCreateFormData({
+      subjectId: subjects.length > 0 ? subjects[0]._id : '',
+      topicId: '',
+      date: format(now, 'yyyy-MM-dd'),
+      startTime: format(start, 'HH:mm'),
+      endTime: format(end, 'HH:mm'),
+      notes: '',
+    });
+
+    if (subjects.length > 0) {
+      loadTopicsForSubject(subjects[0]._id);
+    } else {
+      setAvailableTopics([]);
+    }
+
+    setCreateModalOpen(true);
+  };
+
+  const loadTopicsForSubject = async (subjectId: string) => {
+    if (!subjectId) {
+      setAvailableTopics([]);
+      return;
+    }
+    try {
+      const res = await apiRequest<{ subject: Subject; topics: Topic[] }>(`/subjects/${subjectId}`);
+      setAvailableTopics(res.topics || []);
+    } catch {
+      setAvailableTopics([]);
+    }
+  };
+
+  const handleSubjectChange = (subjectId: string) => {
+    setCreateFormData((prev) => ({ ...prev, subjectId, topicId: '' }));
+    loadTopicsForSubject(subjectId);
+  };
+
+  const handleCreateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreateError(null);
+    if (!createFormData.subjectId || !createFormData.date || !createFormData.startTime || !createFormData.endTime) {
+      setCreateError('Please fill in all required fields.');
+      return;
+    }
+
+    const startDateTime = new Date(`${createFormData.date}T${createFormData.startTime}:00`);
+    const endDateTime = new Date(`${createFormData.date}T${createFormData.endTime}:00`);
+
+    if (startDateTime.getTime() < Date.now() - 30000) {
+      setCreateError('Session start time cannot be in the past. Please select a future date and time.');
+      return;
+    }
+
+    if (endDateTime.getTime() <= startDateTime.getTime()) {
+      setCreateError('Session end time must be later than the start time.');
+      return;
+    }
+
+    try {
+      await apiRequest('/study-sessions', {
+        method: 'POST',
+        body: JSON.stringify({
+          subjectId: createFormData.subjectId,
+          topicId: createFormData.topicId || undefined,
+          scheduledStart: startDateTime.toISOString(),
+          scheduledEnd: endDateTime.toISOString(),
+          notes: createFormData.notes || undefined,
+        }),
+      });
+
+      setCreateModalOpen(false);
+      fetchSessions();
+    } catch (err: any) {
+      setCreateError(err.message || 'Failed to schedule study session.');
+      console.error('Failed to schedule session:', err);
     }
   };
 
@@ -173,6 +299,10 @@ export const TimetablePage: React.FC = () => {
 
           <Button variant="outline" size="sm" onClick={handleJumpToToday}>
             Today
+          </Button>
+
+          <Button size="sm" onClick={openCreateModal} leftIcon={<Plus className="w-4 h-4" />}>
+            Schedule Session
           </Button>
         </div>
       </div>
@@ -426,13 +556,24 @@ export const TimetablePage: React.FC = () => {
         description={selectedSession?.topicTitle}
       >
         <form onSubmit={handleRescheduleSubmit} className="space-y-4 text-xs">
+          {rescheduleError && (
+            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+              <span className="font-medium">{rescheduleError}</span>
+            </div>
+          )}
+
           <div>
             <label className="block font-semibold text-foreground mb-1">New Date</label>
             <input
               type="date"
               required
+              min={todayStr}
               value={rescheduleDate}
-              onChange={(e) => setRescheduleDate(e.target.value)}
+              onChange={(e) => {
+                setRescheduleDate(e.target.value);
+                setRescheduleError(null);
+              }}
               className="w-full px-3 py-2 rounded-xl border border-border bg-card text-foreground"
             />
           </div>
@@ -444,7 +585,10 @@ export const TimetablePage: React.FC = () => {
                 type="time"
                 required
                 value={rescheduleStart}
-                onChange={(e) => setRescheduleStart(e.target.value)}
+                onChange={(e) => {
+                  setRescheduleStart(e.target.value);
+                  setRescheduleError(null);
+                }}
                 className="w-full px-3 py-2 rounded-xl border border-border bg-card text-foreground"
               />
             </div>
@@ -454,7 +598,10 @@ export const TimetablePage: React.FC = () => {
                 type="time"
                 required
                 value={rescheduleEnd}
-                onChange={(e) => setRescheduleEnd(e.target.value)}
+                onChange={(e) => {
+                  setRescheduleEnd(e.target.value);
+                  setRescheduleError(null);
+                }}
                 className="w-full px-3 py-2 rounded-xl border border-border bg-card text-foreground"
               />
             </div>
@@ -466,6 +613,120 @@ export const TimetablePage: React.FC = () => {
             </Button>
             <Button type="submit" size="sm">
               Confirm Reschedule
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Schedule New Study Session Modal */}
+      <Modal
+        isOpen={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        title="Schedule Study Session"
+        description="Add a structured study block to your daily academic timetable"
+      >
+        <form onSubmit={handleCreateSubmit} className="space-y-4 text-xs">
+          {createError && (
+            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+              <span className="font-medium">{createError}</span>
+            </div>
+          )}
+
+          <div>
+            <label className="block font-semibold text-foreground mb-1">Subject / Course *</label>
+            <select
+              required
+              value={createFormData.subjectId}
+              onChange={(e) => handleSubjectChange(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-border bg-card text-foreground"
+            >
+              <option value="" disabled>Select a subject...</option>
+              {subjects.map((s) => (
+                <option key={s._id} value={s._id}>
+                  {s.name} {s.code ? `(${s.code})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block font-semibold text-foreground mb-1">Syllabus Topic (Optional)</label>
+            <select
+              value={createFormData.topicId}
+              onChange={(e) => setCreateFormData({ ...createFormData, topicId: e.target.value })}
+              className="w-full px-3 py-2 rounded-xl border border-border bg-card text-foreground"
+            >
+              <option value="">General study session</option>
+              {availableTopics.map((t) => (
+                <option key={t._id} value={t._id}>
+                  {t.title} ({t.difficulty})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block font-semibold text-foreground mb-1">Date *</label>
+            <input
+              type="date"
+              required
+              min={todayStr}
+              value={createFormData.date}
+              onChange={(e) => {
+                setCreateFormData({ ...createFormData, date: e.target.value });
+                setCreateError(null);
+              }}
+              className="w-full px-3 py-2 rounded-xl border border-border bg-card text-foreground"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-foreground mb-1">Start Time *</label>
+              <input
+                type="time"
+                required
+                value={createFormData.startTime}
+                onChange={(e) => {
+                  setCreateFormData({ ...createFormData, startTime: e.target.value });
+                  setCreateError(null);
+                }}
+                className="w-full px-3 py-2 rounded-xl border border-border bg-card text-foreground"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-foreground mb-1">End Time *</label>
+              <input
+                type="time"
+                required
+                value={createFormData.endTime}
+                onChange={(e) => {
+                  setCreateFormData({ ...createFormData, endTime: e.target.value });
+                  setCreateError(null);
+                }}
+                className="w-full px-3 py-2 rounded-xl border border-border bg-card text-foreground"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-semibold text-foreground mb-1">Notes / Goals (Optional)</label>
+            <textarea
+              rows={2}
+              placeholder="e.g. Complete chapter exercises 4.1 to 4.5"
+              value={createFormData.notes}
+              onChange={(e) => setCreateFormData({ ...createFormData, notes: e.target.value })}
+              className="w-full px-3 py-2 rounded-xl border border-border bg-card text-foreground"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setCreateModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" size="sm">
+              Schedule Session
             </Button>
           </div>
         </form>

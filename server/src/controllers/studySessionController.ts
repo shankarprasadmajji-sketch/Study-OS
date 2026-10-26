@@ -3,11 +3,28 @@ import { z } from 'zod';
 import { startOfDay, endOfDay } from 'date-fns';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { dataStore } from '../services/dataStore.js';
+import {
+  isDateTimeInPast,
+  isEndAfterStart,
+  toDate,
+  checkSessionOverlap,
+  checkSessionAvailability,
+} from '../utils/dateValidation.js';
 
 export const completeSessionSchema = z.object({
   actualMinutes: z.number().min(1).max(720).optional(),
   notes: z.string().max(1000).optional(),
   markTopicCompleted: z.boolean().default(true),
+});
+
+export const createSessionSchema = z.object({
+  topicId: z.string().optional(),
+  subjectId: z.string().min(1, 'Subject ID is required'),
+  scheduledStart: z.string().or(z.date()),
+  scheduledEnd: z.string().or(z.date()),
+  plannedMinutes: z.number().min(15).max(720).optional(),
+  sessionType: z.enum(['study', 'revision']).default('study'),
+  notes: z.string().max(1000).optional(),
 });
 
 export const rescheduleSessionSchema = z.object({
@@ -161,6 +178,76 @@ export const studySessionController = {
     });
   },
 
+  async createSession(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const userId = req.user!.userId;
+    const { topicId, subjectId, scheduledStart, scheduledEnd, plannedMinutes, sessionType, notes } = req.body;
+
+    // Validate that session start is not in the past
+    if (isDateTimeInPast(scheduledStart)) {
+      res.status(400).json({
+        success: false,
+        error: 'Session start time cannot be in the past. Please select a future date and time.',
+      });
+      return;
+    }
+
+    // Validate that end time is later than start time
+    if (!isEndAfterStart(scheduledStart, scheduledEnd)) {
+      res.status(400).json({
+        success: false,
+        error: 'Session end time must be later than the start time.',
+      });
+      return;
+    }
+
+    const sStart = toDate(scheduledStart);
+    const sEnd = toDate(scheduledEnd);
+
+    // Validate no overlapping sessions for this user
+    const overlapCheck = await checkSessionOverlap(userId, sStart, sEnd);
+    if (overlapCheck.overlaps) {
+      res.status(400).json({
+        success: false,
+        error: 'Selected session time overlaps with an existing scheduled study session.',
+      });
+      return;
+    }
+
+    // Validate against user's configured availability hours
+    const user = await dataStore.findUserById(userId);
+    const timezone = (req.headers['x-timezone'] as string) || user?.timezone || 'UTC';
+    const availCheck = await checkSessionAvailability(userId, sStart, sEnd, timezone);
+    if (!availCheck.inBounds) {
+      res.status(400).json({
+        success: false,
+        error: availCheck.reason || 'Selected session time falls outside your configured study availability hours for this day.',
+      });
+      return;
+    }
+
+    const diffMinutes = Math.round((sEnd.getTime() - sStart.getTime()) / 60000);
+    const calculatedMinutes = plannedMinutes || (diffMinutes > 0 ? diffMinutes : 50);
+
+    const newSession = await dataStore.createStudySession({
+      userId,
+      subjectId,
+      topicId: topicId || null,
+      scheduledStart: sStart,
+      scheduledEnd: sEnd,
+      plannedMinutes: calculatedMinutes,
+      actualMinutes: 0,
+      status: 'scheduled',
+      sessionType: sessionType || 'study',
+      notes: notes || '',
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Study session scheduled successfully.',
+      session: newSession,
+    });
+  },
+
   async rescheduleSession(req: AuthenticatedRequest, res: Response): Promise<void> {
     const userId = req.user!.userId;
     const { sessionId } = req.params;
@@ -172,8 +259,49 @@ export const studySessionController = {
       return;
     }
 
-    const sStart = new Date(scheduledStart);
-    const sEnd = new Date(scheduledEnd);
+    // Validate that rescheduled start is not in the past
+    if (isDateTimeInPast(scheduledStart)) {
+      res.status(400).json({
+        success: false,
+        error: 'Rescheduled session start time cannot be in the past. Please select a future date and time.',
+      });
+      return;
+    }
+
+    // Validate that end time is later than start time
+    if (!isEndAfterStart(scheduledStart, scheduledEnd)) {
+      res.status(400).json({
+        success: false,
+        error: 'Session end time must be later than the start time.',
+      });
+      return;
+    }
+
+    const sStart = toDate(scheduledStart);
+    const sEnd = toDate(scheduledEnd);
+
+    // Validate no overlapping sessions for this user (excluding this session)
+    const overlapCheck = await checkSessionOverlap(userId, sStart, sEnd, sessionId);
+    if (overlapCheck.overlaps) {
+      res.status(400).json({
+        success: false,
+        error: 'Selected session time overlaps with an existing scheduled study session.',
+      });
+      return;
+    }
+
+    // Validate against user's configured availability hours
+    const user = await dataStore.findUserById(userId);
+    const timezone = (req.headers['x-timezone'] as string) || user?.timezone || 'UTC';
+    const availCheck = await checkSessionAvailability(userId, sStart, sEnd, timezone);
+    if (!availCheck.inBounds) {
+      res.status(400).json({
+        success: false,
+        error: availCheck.reason || 'Selected session time falls outside your configured study availability hours for this day.',
+      });
+      return;
+    }
+
     const diffMinutes = Math.round((sEnd.getTime() - sStart.getTime()) / 60000);
 
     const updated = await dataStore.updateStudySession(sessionId, userId, {

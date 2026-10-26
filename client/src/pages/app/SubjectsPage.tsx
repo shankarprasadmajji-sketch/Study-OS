@@ -11,7 +11,9 @@ import {
   Search,
   CheckCircle2,
   Clock,
+  AlertCircle,
 } from 'lucide-react';
+import { format } from 'date-fns';
 import { apiRequest } from '../../api/client.js';
 import { Subject } from '../../types/index.js';
 import { Card, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card.js';
@@ -26,6 +28,9 @@ export const SubjectsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
 
   // Form state
   const [formData, setFormData] = useState({
@@ -55,6 +60,7 @@ export const SubjectsPage: React.FC = () => {
 
   const openCreateModal = () => {
     setEditingSubject(null);
+    setFormError(null);
     setFormData({
       name: '',
       code: '',
@@ -68,6 +74,7 @@ export const SubjectsPage: React.FC = () => {
 
   const openEditModal = (s: Subject) => {
     setEditingSubject(s);
+    setFormError(null);
     setFormData({
       name: s.name,
       code: s.code || '',
@@ -81,7 +88,15 @@ export const SubjectsPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
     if (!formData.name.trim()) return;
+
+    if (formData.examDate && formData.examDate.trim() !== '') {
+      if (formData.examDate < todayStr) {
+        setFormError('Exam date cannot be in the past. Please select today or a future date.');
+        return;
+      }
+    }
 
     try {
       if (editingSubject) {
@@ -111,7 +126,8 @@ export const SubjectsPage: React.FC = () => {
       }
       setIsModalOpen(false);
       fetchSubjects();
-    } catch (err) {
+    } catch (err: any) {
+      setFormError(err.message || 'Exam date cannot be in the past. Please select today or a future date.');
       console.error('Failed to save subject:', err);
     }
   };
@@ -221,12 +237,20 @@ export const SubjectsPage: React.FC = () => {
 
                 {/* Exam date info */}
                 <div className="flex items-center gap-2 text-xs text-muted-foreground mb-4">
-                  <Calendar className="w-3.5 h-3.5 text-primary-500" />
+                  <Calendar className={`w-3.5 h-3.5 ${subj.examDate && new Date(subj.examDate) < new Date(todayStr) ? 'text-muted-foreground' : 'text-primary-500'}`} />
                   <span>
-                    Exam:{' '}
-                    {subj.examDate
-                      ? new Date(subj.examDate).toLocaleDateString()
-                      : 'No exam date set'}
+                    {subj.examDate ? (
+                      <span className="inline-flex items-center gap-1.5 flex-wrap">
+                        <span>Exam: {new Date(subj.examDate).toLocaleDateString()}</span>
+                        {new Date(subj.examDate) < new Date(todayStr) && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-muted text-muted-foreground border border-border">
+                            Historical (Passed)
+                          </span>
+                        )}
+                      </span>
+                    ) : (
+                      'No exam date set'
+                    )}
                   </span>
                 </div>
 
@@ -270,6 +294,23 @@ export const SubjectsPage: React.FC = () => {
         description="Configure course details, importance, and examination schedule"
       >
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+          {editingSubject?.examDate && new Date(editingSubject.examDate) < new Date(todayStr) && (
+            <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-800 dark:text-amber-200 flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+              <div>
+                <span className="font-semibold block">Historical Exam Date Preserved</span>
+                The current exam date ({new Date(editingSubject.examDate).toLocaleDateString()}) has passed. You may keep this historical record, clear it, or update it to today or a future date.
+              </div>
+            </div>
+          )}
+
+          {formError && (
+            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+              <span className="font-medium">{formError}</span>
+            </div>
+          )}
+
           <div>
             <label className="block font-semibold text-foreground mb-1">Subject Name *</label>
             <input
@@ -277,7 +318,10 @@ export const SubjectsPage: React.FC = () => {
               required
               placeholder="e.g. Distributed Systems"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onChange={(e) => {
+                setFormData({ ...formData, name: e.target.value });
+                setFormError(null);
+              }}
               className="w-full px-3 py-2 rounded-xl border border-border bg-card text-foreground focus:ring-2 focus:ring-primary-500"
             />
           </div>
@@ -289,18 +333,42 @@ export const SubjectsPage: React.FC = () => {
                 type="text"
                 placeholder="e.g. CS 340"
                 value={formData.code}
-                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, code: e.target.value });
+                  setFormError(null);
+                }}
                 className="w-full px-3 py-2 rounded-xl border border-border bg-card text-foreground uppercase focus:ring-2 focus:ring-primary-500"
               />
             </div>
 
             <div>
-              <label className="block font-semibold text-foreground mb-1">Exam Date</label>
+              <div className="flex items-center justify-between mb-1">
+                <label htmlFor="examDate" className="block font-semibold text-foreground">Exam Date</label>
+                {formData.examDate && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormData({ ...formData, examDate: '' });
+                      setFormError(null);
+                    }}
+                    className="text-[11px] text-rose-600 hover:underline font-medium"
+                  >
+                    Clear Date
+                  </button>
+                )}
+              </div>
               <input
+                id="examDate"
                 type="date"
+                min={todayStr}
                 value={formData.examDate}
-                onChange={(e) => setFormData({ ...formData, examDate: e.target.value })}
-                className="w-full px-3 py-2 rounded-xl border border-border bg-card text-foreground focus:ring-2 focus:ring-primary-500"
+                onChange={(e) => {
+                  setFormData({ ...formData, examDate: e.target.value });
+                  setFormError(null);
+                }}
+                className={`w-full px-3 py-2 rounded-xl border bg-card text-foreground focus:ring-2 focus:ring-primary-500 ${
+                  formError && formError.toLowerCase().includes('exam') ? 'border-rose-400 ring-1 ring-rose-400' : 'border-border'
+                }`}
               />
             </div>
           </div>

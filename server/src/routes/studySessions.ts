@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   studySessionController,
+  createSessionSchema,
   completeSessionSchema,
   rescheduleSessionSchema,
 } from '../controllers/studySessionController.js';
@@ -12,6 +13,7 @@ const router = Router();
 router.use(requireAuth);
 
 router.get('/', studySessionController.getSessions);
+router.post('/', validateBody(createSessionSchema), studySessionController.createSession);
 router.get('/today', studySessionController.getTodaySessions);
 router.post('/:sessionId/complete', validateBody(completeSessionSchema), studySessionController.completeSession);
 router.post('/:sessionId/miss', studySessionController.markMissed);

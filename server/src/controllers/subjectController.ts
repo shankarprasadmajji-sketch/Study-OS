@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { z } from 'zod';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { dataStore } from '../services/dataStore.js';
+import { isDateOnlyInPast } from '../utils/dateValidation.js';
 
 export const createSubjectSchema = z.object({
   name: z.string().min(1, 'Subject name is required').max(120),
@@ -69,11 +70,24 @@ export const subjectController = {
     const userId = req.user!.userId;
     const { name, code, examDate, importance, color, description } = req.body;
 
+    const user = await dataStore.findUserById(userId);
+    const timezone = (req.headers['x-timezone'] as string) || user?.timezone || 'UTC';
+
+    if (examDate && examDate.trim() !== '') {
+      if (isDateOnlyInPast(examDate, timezone)) {
+        res.status(400).json({
+          success: false,
+          error: 'Exam date cannot be in the past. Please select today or a future date.',
+        });
+        return;
+      }
+    }
+
     const newSubject = await dataStore.createSubject({
       userId,
       name,
       code: code?.toUpperCase(),
-      examDate: examDate ? new Date(examDate) : null,
+      examDate: examDate && examDate.trim() !== '' ? new Date(examDate) : null,
       importance: importance || 3,
       color: color || '#4f46e5',
       description: description || '',
@@ -101,8 +115,22 @@ export const subjectController = {
 
     const updates = { ...req.body };
     if (updates.code) updates.code = updates.code.toUpperCase();
+
     if (updates.examDate !== undefined) {
-      updates.examDate = updates.examDate ? new Date(updates.examDate) : null;
+      if (updates.examDate === null || (typeof updates.examDate === 'string' && updates.examDate.trim() === '')) {
+        updates.examDate = null;
+      } else {
+        const user = await dataStore.findUserById(userId);
+        const timezone = (req.headers['x-timezone'] as string) || user?.timezone || 'UTC';
+        if (isDateOnlyInPast(updates.examDate, timezone)) {
+          res.status(400).json({
+            success: false,
+            error: 'Exam date cannot be in the past. Please select today or a future date.',
+          });
+          return;
+        }
+        updates.examDate = new Date(updates.examDate);
+      }
     }
 
     const updated = await dataStore.updateSubject(subjectId, userId, updates);

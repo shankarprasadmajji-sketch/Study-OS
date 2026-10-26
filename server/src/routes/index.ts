@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getDatabaseStatus } from '../config/database.js';
+import { getDatabaseStatus, connectDatabase } from '../config/database.js';
 import { dataStore } from '../services/dataStore.js';
 import authRoutes from './auth.js';
 import profileRoutes from './profile.js';
@@ -10,12 +10,22 @@ import studyPlanRoutes from './studyPlans.js';
 import studySessionRoutes from './studySessions.js';
 import progressRoutes from './progress.js';
 import reminderRoutes from './reminders.js';
+import noteRoutes from './notes.js';
+import historyRoutes from './history.js';
 
 const router = Router();
 
 // Health check endpoint
-router.get('/health', (_req, res) => {
-  const dbStatus = getDatabaseStatus();
+router.get('/health', async (_req, res) => {
+  let dbStatus = getDatabaseStatus();
+
+  if (!dbStatus.isConnected && dbStatus.isConfigured) {
+    try {
+      dbStatus = await connectDatabase();
+    } catch {
+      // Reconnect handled internally
+    }
+  }
 
   res.status(200).json({
     status: 'healthy',
@@ -46,5 +56,7 @@ router.use('/study-plans', studyPlanRoutes);
 router.use('/study-sessions', studySessionRoutes);
 router.use('/progress', progressRoutes);
 router.use('/reminders', reminderRoutes);
+router.use('/notes', noteRoutes);
+router.use('/history', historyRoutes);
 
 export default router;

@@ -1,4 +1,4 @@
-import { addDays, parseISO, isBefore, isAfter, startOfDay, endOfDay, differenceInCalendarDays, format } from 'date-fns';
+import { addDays, parseISO, isBefore, isAfter, startOfDay, endOfDay, differenceInCalendarDays, format, isSameDay } from 'date-fns';
 
 export interface SubjectInput {
   id: string;
@@ -45,6 +45,7 @@ export interface StudyPlanInput {
   breakMinutes?: number;
   existingSessions?: ExistingSessionInput[];
   algorithmVersion?: string;
+  referenceDate?: Date;
 }
 
 export interface ScheduledSessionProposal {
@@ -260,24 +261,38 @@ export function generateStudyPlan(input: StudyPlanInput): StudyPlanResult {
     duration: number;
   }
 
+  const now = input.referenceDate ? new Date(input.referenceDate) : new Date();
+  const todayCalendar = startOfDay(now);
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
   const windows: AvailableWindow[] = [];
   let curDay = startOfDay(startDate);
   const endDay = endOfDay(endDate);
 
   while (!isAfter(curDay, endDay)) {
-    const dayOfWeek = curDay.getDay(); // 0 = Sun, ..., 6 = Sat
-    const dayConfigs = input.availability.filter((a) => a.enabled && a.dayOfWeek === dayOfWeek);
+    // Only schedule on today or future days. Never schedule on days strictly before today.
+    if (!isBefore(curDay, todayCalendar)) {
+      const isToday = isSameDay(curDay, now);
+      const dayOfWeek = curDay.getDay(); // 0 = Sun, ..., 6 = Sat
+      const dayConfigs = input.availability.filter((a) => a.enabled && a.dayOfWeek === dayOfWeek);
 
-    for (const cfg of dayConfigs) {
-      const sMin = timeToMinutes(cfg.startTime);
-      const eMin = timeToMinutes(cfg.endTime);
-      if (eMin > sMin) {
-        windows.push({
-          date: new Date(curDay),
-          startMin: sMin,
-          endMin: eMin,
-          duration: eMin - sMin,
-        });
+      for (const cfg of dayConfigs) {
+        let sMin = timeToMinutes(cfg.startTime);
+        const eMin = timeToMinutes(cfg.endTime);
+
+        // If scheduling on today, start time cannot be in the past
+        if (isToday && sMin < nowMinutes) {
+          sMin = nowMinutes;
+        }
+
+        if (eMin > sMin && (eMin - sMin) >= 15) {
+          windows.push({
+            date: new Date(curDay),
+            startMin: sMin,
+            endMin: eMin,
+            duration: eMin - sMin,
+          });
+        }
       }
     }
 
@@ -414,6 +429,11 @@ export function generateStudyPlan(input: StudyPlanInput): StudyPlanResult {
 
       const sessionStart = minutesToDate(win.date, currentWindowPointer);
       const sessionEnd = minutesToDate(win.date, currentWindowPointer + chunkMinutes);
+
+      if (isBefore(sessionStart, now)) {
+        currentWindowPointer += 15;
+        continue;
+      }
 
       scheduledSessions.push({
         topicId: selected.topic.id,

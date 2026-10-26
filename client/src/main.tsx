@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App.js';
 import { AuthProvider } from './context/AuthContext.js';
 import { ThemeProvider } from './context/ThemeContext.js';
+import { MusicProvider } from './context/MusicContext.js';
 import './styles/index.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -11,7 +12,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <BrowserRouter>
       <ThemeProvider>
         <AuthProvider>
-          <App />
+          <MusicProvider>
+            <App />
+          </MusicProvider>
         </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>

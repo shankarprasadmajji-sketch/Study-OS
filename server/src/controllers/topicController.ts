@@ -177,4 +177,39 @@ export const topicController = {
       message: 'Topic deleted successfully.',
     });
   },
+
+  async completeTopic(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const userId = req.user!.userId;
+    const { topicId } = req.params;
+    const { actualMinutes } = req.body;
+
+    const updated = await dataStore.completeTopic(topicId, userId, actualMinutes);
+    if (!updated) {
+      res.status(404).json({ success: false, error: 'Topic not found or does not belong to you.' });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Topic marked as completed! Milestone achieved.',
+      topic: updated,
+    });
+  },
+
+  async reopenTopic(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const userId = req.user!.userId;
+    const { topicId } = req.params;
+
+    const updated = await dataStore.reopenTopic(topicId, userId);
+    if (!updated) {
+      res.status(404).json({ success: false, error: 'Topic not found or does not belong to you.' });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Topic reopened for study.',
+      topic: updated,
+    });
+  },
 };

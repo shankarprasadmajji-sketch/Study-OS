@@ -161,4 +161,39 @@ export const progressController = {
       history: completed,
     });
   },
+
+  async getAccuracy(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const userId = req.user!.userId;
+    const { subjectId, range, startDate, endDate } = req.query as {
+      subjectId?: string;
+      range?: string;
+      startDate?: string;
+      endDate?: string;
+    };
+
+    const filters: any = {};
+    if (subjectId) filters.subjectId = subjectId;
+    if (range) filters.range = range;
+    if (startDate) filters.startDate = new Date(startDate);
+    if (endDate) filters.endDate = new Date(endDate);
+
+    const accuracy = await dataStore.getAccuracyMetrics(userId, filters);
+
+    res.status(200).json({
+      success: true,
+      accuracy,
+    });
+  },
+
+  async getStreaks(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const userId = req.user!.userId;
+    const { timezone } = req.query as { timezone?: string };
+
+    const streaks = await dataStore.getStreaks(userId, timezone);
+
+    res.status(200).json({
+      success: true,
+      streaks,
+    });
+  },
 };

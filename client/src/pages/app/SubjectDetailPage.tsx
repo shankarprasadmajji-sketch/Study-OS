@@ -197,8 +197,19 @@ export const SubjectDetailPage: React.FC = () => {
 
           <div className="flex items-center gap-3 shrink-0">
             <div className="text-right">
-              <span className="text-xs font-semibold text-foreground">
-                {subject.examDate ? new Date(subject.examDate).toLocaleDateString() : 'No exam set'}
+              <span className="text-xs font-semibold text-foreground inline-flex items-center gap-1.5 justify-end">
+                {subject.examDate ? (
+                  <>
+                    <span>{new Date(subject.examDate).toLocaleDateString()}</span>
+                    {new Date(subject.examDate) < new Date() && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-muted text-muted-foreground border border-border">
+                        Historical
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  'No exam set'
+                )}
               </span>
               <p className="text-[11px] text-muted-foreground">Exam Date</p>
             </div>

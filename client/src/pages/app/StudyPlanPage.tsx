@@ -30,6 +30,10 @@ export const StudyPlanPage: React.FC = () => {
   // Generate Plan Modal State
   const [generateModalOpen, setGenerateModalOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [planError, setPlanError] = useState<string | null>(null);
+
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
+
   const [planFormData, setPlanFormData] = useState({
     name: 'Spring Semester Exam Prep Plan',
     startDate: format(new Date(), 'yyyy-MM-dd'),
@@ -76,6 +80,18 @@ export const StudyPlanPage: React.FC = () => {
   // Run preview before saving
   const handlePreviewPlan = async (e: React.FormEvent) => {
     e.preventDefault();
+    setPlanError(null);
+
+    if (planFormData.startDate < todayStr) {
+      setPlanError('Plan start date cannot be in the past. Please select today or a future date.');
+      return;
+    }
+
+    if (planFormData.endDate < planFormData.startDate) {
+      setPlanError('End date must be on or after start date.');
+      return;
+    }
+
     setIsGenerating(true);
     try {
       const res = await apiRequest('/study-plans/generate', {
@@ -87,7 +103,7 @@ export const StudyPlanPage: React.FC = () => {
       });
       setPreviewData(res);
     } catch (err: any) {
-      alert(err.message || 'Plan generation preview failed.');
+      setPlanError(err.message || 'Plan generation preview failed.');
     } finally {
       setIsGenerating(false);
     }
@@ -356,6 +372,13 @@ export const StudyPlanPage: React.FC = () => {
         <div className="space-y-4 text-xs">
           {!previewData ? (
             <form onSubmit={handlePreviewPlan} className="space-y-4">
+              {planError && (
+                <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
+                  <span className="font-medium">{planError}</span>
+                </div>
+              )}
+
               <div>
                 <label className="block font-semibold text-foreground mb-1">Plan Name</label>
                 <input
@@ -373,8 +396,12 @@ export const StudyPlanPage: React.FC = () => {
                   <input
                     type="date"
                     required
+                    min={todayStr}
                     value={planFormData.startDate}
-                    onChange={(e) => setPlanFormData({ ...planFormData, startDate: e.target.value })}
+                    onChange={(e) => {
+                      setPlanFormData({ ...planFormData, startDate: e.target.value });
+                      setPlanError(null);
+                    }}
                     className="w-full px-3 py-2 rounded-xl border border-border bg-card text-foreground"
                   />
                 </div>
@@ -383,8 +410,12 @@ export const StudyPlanPage: React.FC = () => {
                   <input
                     type="date"
                     required
+                    min={planFormData.startDate || todayStr}
                     value={planFormData.endDate}
-                    onChange={(e) => setPlanFormData({ ...planFormData, endDate: e.target.value })}
+                    onChange={(e) => {
+                      setPlanFormData({ ...planFormData, endDate: e.target.value });
+                      setPlanError(null);
+                    }}
                     className="w-full px-3 py-2 rounded-xl border border-border bg-card text-foreground"
                   />
                 </div>

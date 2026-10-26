@@ -12,6 +12,9 @@ import {
   GraduationCap,
   LogOut,
   ChevronRight,
+  FileText,
+  History,
+  Headphones,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.js';
 
@@ -28,6 +31,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
     { name: 'Topics', path: '/app/topics', icon: ListTodo },
     { name: 'Timetable', path: '/app/timetable', icon: CalendarDays },
     { name: 'Study Plan', path: '/app/study-plan', icon: Sparkles },
+    { name: 'Notes', path: '/app/notes', icon: FileText },
+    { name: 'History', path: '/app/history', icon: History },
+    { name: 'Study Music', path: '/app/music', icon: Headphones },
     { name: 'Progress', path: '/app/progress', icon: BarChart3 },
     { name: 'Focus Mode', path: '/app/focus', icon: Timer },
     { name: 'Settings', path: '/app/settings', icon: Settings },

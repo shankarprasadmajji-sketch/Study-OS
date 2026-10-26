@@ -18,6 +18,9 @@ import { StudyPlanPage } from './pages/app/StudyPlanPage.js';
 import { ProgressPage } from './pages/app/ProgressPage.js';
 import { FocusPage } from './pages/app/FocusPage.js';
 import { SettingsPage } from './pages/app/SettingsPage.js';
+import { NotesPage } from './pages/app/NotesPage.js';
+import { HistoryPage } from './pages/app/HistoryPage.js';
+import { MusicPage } from './pages/app/MusicPage.js';
 import { NotFoundPage } from './pages/NotFoundPage.js';
 
 export const App: React.FC = () => {
@@ -57,6 +60,9 @@ export const App: React.FC = () => {
         <Route path="timetable" element={<TimetablePage />} />
         <Route path="study-plan" element={<StudyPlanPage />} />
         <Route path="progress" element={<ProgressPage />} />
+        <Route path="notes" element={<NotesPage />} />
+        <Route path="history" element={<HistoryPage />} />
+        <Route path="music" element={<MusicPage />} />
         <Route path="focus" element={<FocusPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>

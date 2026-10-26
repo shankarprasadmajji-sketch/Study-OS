@@ -10,14 +10,21 @@ import {
   Sparkles,
   Info,
   BookOpen,
+  Music2,
+  FileText,
+  SkipForward,
 } from 'lucide-react';
 import { apiRequest } from '../../api/client.js';
 import { Topic } from '../../types/index.js';
 import { Card } from '../../components/ui/Card.js';
 import { Button } from '../../components/ui/Button.js';
 import { Badge } from '../../components/ui/Badge.js';
+import { useMusic } from '../../context/MusicContext.js';
+import { QuickNoteModal } from '../../components/notes/QuickNoteModal.js';
 
 export const FocusPage: React.FC = () => {
+  const { currentTrack, isPlaying: isMusicPlaying, togglePlay: toggleMusic, nextTrack, volume: musicVolume, setVolume: setMusicVolume } = useMusic();
+
   const [topics, setTopics] = useState<Topic[]>([]);
   const [selectedTopicId, setSelectedTopicId] = useState<string>('');
   const [targetMinutes, setTargetMinutes] = useState(25); // Default 25 min Pomodoro
@@ -26,6 +33,8 @@ export const FocusPage: React.FC = () => {
   const [mode, setMode] = useState<'focus' | 'break'>('focus');
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [sessionCompletedNotice, setSessionCompletedNotice] = useState(false);
+  const [isQuickNoteOpen, setIsQuickNoteOpen] = useState(false);
+  const [pauseMusicOnTimerPause, setPauseMusicOnTimerPause] = useState(false);
 
   // Interval reference
   const intervalRef = useRef<any>(null);
@@ -72,7 +81,7 @@ export const FocusPage: React.FC = () => {
   const handleTimerComplete = async () => {
     setSessionCompletedNotice(true);
 
-    // Beep / audio chime simulation using AudioContext
+    // Beep audio chime simulation using AudioContext
     if (soundEnabled && typeof window !== 'undefined' && window.AudioContext) {
       try {
         const ctx = new AudioContext();
@@ -80,37 +89,46 @@ export const FocusPage: React.FC = () => {
         const gain = ctx.createGain();
         osc.connect(gain);
         gain.connect(ctx.destination);
-        osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
-        osc.frequency.setValueAtTime(880, ctx.currentTime + 0.15); // A5
+        osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+        osc.frequency.setValueAtTime(880, ctx.currentTime + 0.15);
         gain.gain.setValueAtTime(0.3, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
         osc.start();
-        osc.stop(ctx.currentTime + 0.6);
+        osc.stop(ctx.currentTime + 0.5);
       } catch {
-        // AudioContext policy fallback
+        // Fallback gracefully
       }
     }
 
-    // Auto mark topic completed or log time if topic selected
-    if (selectedTopicId && mode === 'focus') {
+    // Record study session duration in backend
+    if (mode === 'focus' && selectedTopicId) {
       try {
-        await apiRequest(`/topics/${selectedTopicId}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ status: 'in_progress' }),
-        });
-      } catch (err) {
-        console.error('Failed to update topic progress:', err);
+        await apiRequest('/study-sessions', {
+          method: 'POST',
+          body: JSON.stringify({
+            topicId: selectedTopicId,
+            plannedMinutes: targetMinutes,
+            actualMinutes: targetMinutes,
+            status: 'completed',
+            sessionType: 'study',
+          }),
+        }).catch(() => {});
+      } catch {
+        // Ignore
       }
     }
   };
 
   const handleStart = () => {
-    setSessionCompletedNotice(false);
     setIsRunning(true);
+    setSessionCompletedNotice(false);
   };
 
   const handlePause = () => {
     setIsRunning(false);
+    if (pauseMusicOnTimerPause && isMusicPlaying) {
+      toggleMusic();
+    }
   };
 
   const handleReset = () => {
@@ -119,91 +137,101 @@ export const FocusPage: React.FC = () => {
     setSessionCompletedNotice(false);
   };
 
-  const setPreset = (mins: number, presetMode: 'focus' | 'break') => {
+  const handleModeChange = (newMode: 'focus' | 'break') => {
+    setMode(newMode);
     setIsRunning(false);
-    setMode(presetMode);
+    setSessionCompletedNotice(false);
+    const mins = newMode === 'focus' ? 25 : 5;
     setTargetMinutes(mins);
     setSecondsLeft(mins * 60);
+  };
+
+  const setCustomMinutes = (mins: number) => {
+    setTargetMinutes(mins);
+    setSecondsLeft(mins * 60);
+    setIsRunning(false);
     setSessionCompletedNotice(false);
   };
 
-  const formatTime = (secs: number) => {
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  const formatTime = (totalSeconds: number) => {
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const selectedTopic = topics.find((t) => t._id === selectedTopicId);
-  const progressPercent = Math.round(((targetMinutes * 60 - secondsLeft) / (targetMinutes * 60)) * 100);
+  const progressPercent = ((targetMinutes * 60 - secondsLeft) / (targetMinutes * 60)) * 100;
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       {/* Title */}
-      <div className="text-center">
-        <h2 className="text-xl font-bold tracking-tight text-foreground">Distraction-Free Focus Mode</h2>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          Eliminate digital friction and immerse yourself in single-task study intervals
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-center sm:text-left">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center justify-center sm:justify-start gap-2.5">
+            <Timer className="w-6 h-6 text-primary-600" />
+            Distraction-Free Focus Mode
+          </h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Pomodoro interval timer integrated with Study Music and Quick Notes.
+          </p>
+        </div>
+
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => setIsQuickNoteOpen(true)}
+          leftIcon={<FileText className="w-3.5 h-3.5" />}
+        >
+          Quick Note
+        </Button>
       </div>
 
-      {/* Focus Timer Card */}
-      <Card className="p-8 sm:p-12 text-center relative overflow-hidden shadow-elevated">
-        {/* Top Controls / Presets */}
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-8">
-          <div className="flex rounded-xl border border-border bg-muted/40 p-1 text-xs">
+      {/* Main Timer Display Card */}
+      <Card className="p-6 sm:p-10 text-center border-border shadow-elevated bg-card relative overflow-hidden">
+        {/* Mode Selector Tabs */}
+        <div className="flex items-center justify-center gap-2 mb-6">
+          <div className="inline-flex p-1 bg-muted rounded-xl">
             <button
-              onClick={() => setPreset(25, 'focus')}
-              className={`px-3 py-1 rounded-lg font-medium transition-colors ${
-                mode === 'focus' && targetMinutes === 25
-                  ? 'bg-primary-600 text-white shadow-sm'
+              onClick={() => handleModeChange('focus')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                mode === 'focus'
+                  ? 'bg-card text-foreground shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              Pomodoro (25m)
+              Study Focus
             </button>
             <button
-              onClick={() => setPreset(50, 'focus')}
-              className={`px-3 py-1 rounded-lg font-medium transition-colors ${
-                mode === 'focus' && targetMinutes === 50
-                  ? 'bg-primary-600 text-white shadow-sm'
+              onClick={() => handleModeChange('break')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                mode === 'break'
+                  ? 'bg-card text-foreground shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              Deep Work (50m)
-            </button>
-            <button
-              onClick={() => setPreset(5, 'break')}
-              className={`px-3 py-1 rounded-lg font-medium transition-colors ${
-                mode === 'break' && targetMinutes === 5
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Short Break (5m)
-            </button>
-            <button
-              onClick={() => setPreset(15, 'break')}
-              className={`px-3 py-1 rounded-lg font-medium transition-colors ${
-                mode === 'break' && targetMinutes === 15
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Long Break (15m)
+              Short Break
             </button>
           </div>
+        </div>
 
-          <button
-            onClick={() => setSoundEnabled(!soundEnabled)}
-            className="p-2 rounded-xl border border-border text-muted-foreground hover:text-foreground"
-            title={soundEnabled ? 'Mute Chime' : 'Enable Chime'}
-          >
-            {soundEnabled ? <Volume2 className="w-4 h-4 text-primary-600" /> : <VolumeX className="w-4 h-4" />}
-          </button>
+        {/* Duration Quick Presets */}
+        <div className="flex items-center justify-center gap-2 mb-6 flex-wrap">
+          {(mode === 'focus' ? [15, 25, 45, 60] : [5, 10, 15]).map((mins) => (
+            <button
+              key={mins}
+              onClick={() => setCustomMinutes(mins)}
+              className={`px-3 py-1 rounded-lg text-xs font-mono font-medium border transition-colors ${
+                targetMinutes === mins
+                  ? 'bg-primary-50 text-primary-700 border-primary-300 dark:bg-primary-950/60 dark:text-primary-300 dark:border-primary-800'
+                  : 'border-border text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              {mins}m
+            </button>
+          ))}
         </div>
 
         {/* Selected Topic Picker */}
-        <div className="max-w-md mx-auto mb-8 text-left">
+        <div className="max-w-md mx-auto mb-6 text-left">
           <label className="block text-xs font-semibold text-foreground mb-1">
             Focusing on Syllabus Topic:
           </label>
@@ -226,8 +254,40 @@ export const FocusPage: React.FC = () => {
           )}
         </div>
 
+        {/* Integrated Study Music Bar */}
+        {currentTrack && (
+          <div className="max-w-md mx-auto mb-6 p-3 rounded-xl bg-muted/40 border border-border flex items-center justify-between gap-3 text-left">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-primary-600 text-white flex items-center justify-center shrink-0">
+                <Music2 className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-foreground truncate">{currentTrack.title}</p>
+                <p className="text-[11px] text-muted-foreground truncate">{currentTrack.categoryLabel}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                onClick={toggleMusic}
+                className="w-7 h-7 rounded-full bg-primary-600 hover:bg-primary-700 text-white flex items-center justify-center"
+                title={isMusicPlaying ? 'Pause Music' : 'Play Study Music'}
+              >
+                {isMusicPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 ml-0.5" />}
+              </button>
+              <button
+                onClick={nextTrack}
+                className="p-1 text-muted-foreground hover:text-foreground"
+                title="Next Music Track"
+              >
+                <SkipForward className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Giant Timer Display */}
-        <div className="my-8">
+        <div className="my-6">
           <div className="font-mono text-6xl sm:text-7xl md:text-8xl font-black tracking-tight text-foreground select-none">
             {formatTime(secondsLeft)}
           </div>
@@ -283,24 +343,44 @@ export const FocusPage: React.FC = () => {
           </Button>
         </div>
 
+        {/* Preferences Toggle: Pause music with timer */}
+        <div className="flex items-center justify-center gap-4 mt-6 text-xs text-muted-foreground">
+          <label className="flex items-center gap-1.5 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={pauseMusicOnTimerPause}
+              onChange={(e) => setPauseMusicOnTimerPause(e.target.checked)}
+              className="rounded border-border text-primary-600"
+            />
+            <span>Pause music when timer is paused</span>
+          </label>
+
+          <button
+            onClick={() => setSoundEnabled((prev) => !prev)}
+            className="flex items-center gap-1 hover:text-foreground"
+          >
+            {soundEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+            <span>{soundEnabled ? 'Chime on' : 'Chime off'}</span>
+          </button>
+        </div>
+
         {/* Completion Notification */}
         {sessionCompletedNotice && (
           <div className="mt-8 p-4 rounded-xl bg-emerald-50 text-emerald-900 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 text-xs flex items-center justify-center gap-2">
             <CheckCircle2 className="w-5 h-5 text-emerald-600" />
             <span className="font-semibold">
-              Interval Completed! Take a breather or proceed to your next topic.
+              Interval Completed! Recorded in your study history.
             </span>
           </div>
         )}
       </Card>
 
-      {/* Realistic Platform Note */}
-      <div className="p-4 rounded-xl bg-muted/50 border border-border text-[11px] text-muted-foreground flex items-start gap-2.5">
-        <Info className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
-        <p className="leading-relaxed">
-          <strong>Note on Device Limitations:</strong> A standard web application runs inside browser sandboxes and cannot natively close third-party native apps (such as Instagram or YouTube) on your operating system. For system-level site blocking, we recommend combining StudyOS with dedicated platform screen-time utilities or browser extensions.
-        </p>
-      </div>
+      {/* Quick Note Modal */}
+      <QuickNoteModal
+        isOpen={isQuickNoteOpen}
+        onClose={() => setIsQuickNoteOpen(false)}
+        defaultTopicId={selectedTopicId}
+      />
     </div>
   );
 };

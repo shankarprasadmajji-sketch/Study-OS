@@ -9,5 +9,7 @@ router.use(requireAuth);
 router.get('/summary', progressController.getSummary);
 router.get('/subjects', progressController.getSubjectProgress);
 router.get('/history', progressController.getHistory);
+router.get('/accuracy', progressController.getAccuracy);
+router.get('/streaks', progressController.getStreaks);
 
 export default router;

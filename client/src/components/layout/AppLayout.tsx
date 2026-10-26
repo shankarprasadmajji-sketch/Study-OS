@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar.js';
 import { Header } from './Header.js';
+import { MiniMusicPlayer } from '../music/MiniMusicPlayer.js';
 
 export const AppLayout: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -35,6 +36,9 @@ export const AppLayout: React.FC = () => {
           </div>
         </main>
       </div>
+
+      {/* Persistent Study Music Bar */}
+      <MiniMusicPlayer />
     </div>
   );
 };

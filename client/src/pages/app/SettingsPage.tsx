@@ -392,18 +392,35 @@ export const SettingsPage: React.FC = () => {
             <CardTitle>Database Architecture</CardTitle>
             <CardDescription>MongoDB and Mongoose backend connection status</CardDescription>
           </div>
-          <Badge variant={dbStatus?.isConnected ? 'success' : 'warning'}>
-            {dbStatus?.isConnected ? 'MongoDB Connected' : 'Demo Mode Active'}
+          <Badge
+            variant={
+              dbStatus?.isConnected
+                ? 'success'
+                : dbStatus?.isConfigured
+                ? 'danger'
+                : 'warning'
+            }
+          >
+            {dbStatus?.isConnected
+              ? 'MongoDB Connected'
+              : dbStatus?.state === 'connecting'
+              ? 'MongoDB Connecting...'
+              : dbStatus?.isConfigured
+              ? 'MongoDB Disconnected'
+              : 'Demo Mode Active'}
           </Badge>
         </CardHeader>
 
         <div className="p-4 rounded-xl bg-muted/60 border border-border text-xs space-y-2">
           <p className="font-semibold text-foreground">
-            Connection State: {dbStatus?.state || 'unconfigured'}
+            Connection State: <span className="font-mono">{dbStatus?.state || 'unconfigured'}</span>
+            {dbStatus?.host && <span> · Host: <span className="font-mono">{dbStatus.host}</span></span>}
           </p>
           <p className="text-muted-foreground leading-relaxed">
             {dbStatus?.isConnected
               ? `Connected to database "${dbStatus.databaseName}" on host "${dbStatus.host}". Mongoose ODM models are persisting all changes directly to MongoDB.`
+              : dbStatus?.isConfigured
+              ? `A MongoDB URI is configured in server/.env, but the server is not currently connected to the cluster. Error: ${dbStatus?.errorMessage || 'Connection unavailable'}. StudyOS backend is actively attempting automatic reconnection.`
               : 'Notice: MONGODB_URI is not set in server/.env. StudyOS has safely booted in Demo Mode with an in-memory repository so you can test all features. Once you add MONGODB_URI, all database models connect automatically.'}
           </p>
         </div>
