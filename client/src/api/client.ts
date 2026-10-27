@@ -1,6 +1,20 @@
 import { DatabaseStatus } from '../types/index.js';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+function resolveApiBaseUrl(): string {
+  const envUrl = (import.meta.env.VITE_API_URL || '').trim();
+  if (!envUrl) {
+    return 'http://localhost:5000/api/v1';
+  }
+  // Strip trailing slashes
+  const cleanUrl = envUrl.replace(/\/+$/, '');
+  // If the user provided the base URL without /api/v1, auto-append it
+  if (!cleanUrl.endsWith('/api/v1')) {
+    return `${cleanUrl}/api/v1`;
+  }
+  return cleanUrl;
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 export class ApiError extends Error {
   statusCode: number;

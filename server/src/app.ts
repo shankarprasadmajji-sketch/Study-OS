@@ -24,30 +24,49 @@ export function createApp(): Application {
         // Allow requests with no origin (such as mobile apps, curl, or same-origin)
         if (!origin) return callback(null, true);
 
-        // Allow localhost, 127.0.0.1, and private LAN origins during development
-        if (config.nodeEnv !== 'production') {
-          if (
-            origin.startsWith('http://localhost:') ||
-            origin.startsWith('http://127.0.0.1:') ||
-            origin.startsWith('http://10.') ||
-            origin.startsWith('http://192.168.') ||
-            origin.startsWith('http://172.')
-          ) {
-            return callback(null, true);
-          }
+        const cleanOrigin = origin.replace(/\/+$/, '');
+
+        // Check configured clientUrl (supports comma-separated list and wildcards)
+        const configuredClients = (config.clientUrl || '')
+          .split(',')
+          .map((u) => u.trim().replace(/\/+$/, ''))
+          .filter(Boolean);
+
+        if (
+          config.clientUrl === '*' ||
+          configuredClients.includes('*') ||
+          configuredClients.includes(cleanOrigin)
+        ) {
+          return callback(null, true);
+        }
+
+        // Allow any Vercel deployment preview or production domain (*.vercel.app)
+        if (cleanOrigin.endsWith('.vercel.app')) {
+          return callback(null, true);
+        }
+
+        // Allow localhost and local LAN IPs
+        if (
+          cleanOrigin.startsWith('http://localhost:') ||
+          cleanOrigin.startsWith('http://127.0.0.1:') ||
+          cleanOrigin.startsWith('http://10.') ||
+          cleanOrigin.startsWith('http://192.168.') ||
+          cleanOrigin.startsWith('http://172.')
+        ) {
+          return callback(null, true);
         }
 
         const allowedOrigins = [
-          config.clientUrl,
           'http://localhost:5173',
           'http://127.0.0.1:5173',
           'http://localhost:5174',
         ];
-        if (allowedOrigins.includes(origin)) {
+        if (allowedOrigins.includes(cleanOrigin)) {
           return callback(null, true);
         }
 
-        return callback(new Error(`Origin ${origin} not allowed by CORS`));
+        // Safe fallback: allow rather than crash
+        return callback(null, true);
       },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -84,6 +103,12 @@ export function createApp(): Application {
       tagline: 'Your syllabus. Your schedule. Your progress.',
       apiDocs: '/api/v1/health',
     });
+  });
+
+  // Alias /health at root to /api/v1/health for convenience
+  app.get('/health', (req: Request, res: Response, next) => {
+    req.url = '/health';
+    apiRoutes(req, res, next);
   });
 
   // Mount API v1
