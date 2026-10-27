@@ -263,16 +263,74 @@ export const StudyPlanPage: React.FC = () => {
                   <span className="text-[10px] text-muted-foreground">
                     {activePlan.feasibility?.status === 'feasible'
                       ? 'Workload fits comfortably'
-                      : 'Tight schedule capacity'}
+                      : activePlan.feasibility?.status === 'tight'
+                      ? 'Tight schedule capacity'
+                      : 'Capacity shortfall detected'}
                   </span>
                 </div>
-                <div className="w-12 h-12 rounded-xl bg-primary-600 text-white flex items-center justify-center font-extrabold text-base shadow-sm">
-                  {activePlan.feasibility?.score || 95}
+                <div
+                  className={`w-12 h-12 rounded-xl text-white flex items-center justify-center font-extrabold text-base shadow-sm ${
+                    (activePlan.feasibility?.score ?? 0) >= 80
+                      ? 'bg-emerald-600'
+                      : (activePlan.feasibility?.score ?? 0) >= 50
+                      ? 'bg-amber-600'
+                      : 'bg-rose-600'
+                  }`}
+                >
+                  {activePlan.feasibility?.score ?? 0}
                 </div>
               </div>
             </div>
 
-            {/* Explanations & Warnings */}
+            {/* Quick Metrics Bar */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-5">
+              <div className="p-2.5 rounded-xl bg-muted/40 border border-border text-center">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground block">
+                  Topics Scheduled
+                </span>
+                <span className="text-sm font-extrabold text-foreground mt-0.5 block">
+                  {activePlan.feasibility?.scheduledTopics ?? sessions.length} /{' '}
+                  {activePlan.feasibility?.totalTopics ?? sessions.length}
+                </span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-muted/40 border border-border text-center">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground block">
+                  Total Sessions
+                </span>
+                <span className="text-sm font-extrabold text-foreground mt-0.5 block">
+                  {sessions.length}
+                </span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-muted/40 border border-border text-center">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground block">
+                  Allocated Study
+                </span>
+                <span className="text-sm font-extrabold text-foreground mt-0.5 block">
+                  {(
+                    sessions.reduce((acc, s) => acc + (s.plannedMinutes || 0), 0) / 60
+                  ).toFixed(1)}{' '}
+                  hrs
+                </span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-muted/40 border border-border text-center">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground block">
+                  Feasibility
+                </span>
+                <span
+                  className={`text-sm font-extrabold mt-0.5 block capitalize ${
+                    activePlan.feasibility?.status === 'feasible'
+                      ? 'text-emerald-500'
+                      : activePlan.feasibility?.status === 'tight'
+                      ? 'text-amber-500'
+                      : 'text-rose-500'
+                  }`}
+                >
+                  {activePlan.feasibility?.status || 'Active'}
+                </span>
+              </div>
+            </div>
+
+            {/* Explanations, Warnings & Unscheduled Topics */}
             <div className="mt-6 pt-6 border-t border-border space-y-3">
               {activePlan.feasibility?.warnings && activePlan.feasibility.warnings.length > 0 && (
                 <div className="p-3.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-900 text-xs flex items-start gap-2">
@@ -284,6 +342,33 @@ export const StudyPlanPage: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              {activePlan.feasibility?.unscheduledTopics &&
+                activePlan.feasibility.unscheduledTopics.length > 0 && (
+                  <div className="p-3.5 rounded-xl bg-rose-50 text-rose-950 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-200 dark:border-rose-900 text-xs space-y-2">
+                    <div className="flex items-center gap-2 font-semibold text-rose-800 dark:text-rose-300">
+                      <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                      <span>
+                        Unscheduled Topics ({activePlan.feasibility.unscheduledTopics.length})
+                      </span>
+                    </div>
+                    <div className="space-y-1 pl-1">
+                      {activePlan.feasibility.unscheduledTopics.map((ut, idx) => (
+                        <div
+                          key={idx}
+                          className="flex flex-col sm:flex-row sm:items-center justify-between text-xs py-1 border-b border-rose-200/60 dark:border-rose-800/60 last:border-0"
+                        >
+                          <span className="font-semibold text-rose-900 dark:text-rose-100">
+                            {ut.title} {ut.subjectName ? `(${ut.subjectName})` : ''}
+                          </span>
+                          <span className="text-[11px] text-rose-700 dark:text-rose-300/90 italic">
+                            {ut.reason}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
               {activePlan.feasibility?.explanations && (
                 <div className="p-3.5 rounded-xl bg-card border border-border text-xs text-muted-foreground space-y-1">
@@ -312,44 +397,52 @@ export const StudyPlanPage: React.FC = () => {
             </CardHeader>
 
             <div className="space-y-2">
-              {sessions.slice(0, 15).map((sess) => (
-                <div
-                  key={sess._id}
-                  className="p-3 rounded-xl border border-border bg-card flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-primary-400 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="w-1.5 h-8 rounded-full shrink-0"
-                      style={{ backgroundColor: sess.subjectColor || '#4f46e5' }}
-                    />
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold text-foreground">
-                          {sess.topicTitle}
-                        </span>
-                        <Badge size="sm">{sess.subjectName}</Badge>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">
-                        {format(new Date(sess.scheduledStart), 'EEE, MMM d, yyyy • h:mm a')} (
-                        {sess.plannedMinutes} mins)
-                      </p>
-                    </div>
-                  </div>
-
-                  <Badge
-                    size="sm"
-                    variant={
-                      sess.status === 'completed'
-                        ? 'success'
-                        : sess.status === 'missed'
-                        ? 'danger'
-                        : 'outline'
-                    }
+              {sessions.length === 0 ? (
+                <p className="text-center text-xs text-muted-foreground py-6">
+                  No sessions have been scheduled yet for this plan.
+                </p>
+              ) : (
+                sessions.slice(0, 15).map((sess) => (
+                  <div
+                    key={sess._id}
+                    className="p-3 rounded-xl border border-border bg-card flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-primary-400 transition-colors"
                   >
-                    {sess.status}
-                  </Badge>
-                </div>
-              ))}
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-1.5 h-8 rounded-full shrink-0"
+                        style={{ backgroundColor: sess.subjectColor || '#4f46e5' }}
+                      />
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-foreground">
+                            {sess.topicTitle || (sess as any).title || 'Study Session'}
+                          </span>
+                          <Badge size="sm">
+                            {sess.subjectName || (sess as any).subject?.name || 'General'}
+                          </Badge>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          {format(new Date(sess.scheduledStart), 'EEE, MMM d, yyyy • h:mm a')} (
+                          {sess.plannedMinutes} mins)
+                        </p>
+                      </div>
+                    </div>
+
+                    <Badge
+                      size="sm"
+                      variant={
+                        sess.status === 'completed'
+                          ? 'success'
+                          : sess.status === 'missed'
+                          ? 'danger'
+                          : 'outline'
+                      }
+                    >
+                      {sess.status}
+                    </Badge>
+                  </div>
+                ))
+              )}
 
               {sessions.length > 15 && (
                 <p className="text-center text-xs text-muted-foreground py-2">

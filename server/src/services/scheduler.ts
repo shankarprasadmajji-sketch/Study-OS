@@ -416,15 +416,32 @@ export function generateStudyPlan(input: StudyPlanInput): StudyPlanResult {
         return a.topic.title.localeCompare(b.topic.title);
       });
 
+      const availableWindowSlice = win.endMin - currentWindowPointer;
+      if (availableWindowSlice < 15) {
+        break; // Window slice too small for any practical study session
+      }
+
       const selected = scoredCandidates[0];
       const remainingForTopic = remainingMinutesMap.get(selected.topic.id) || 60;
-      const availableWindowSlice = win.endMin - currentWindowPointer;
 
-      // Session planned duration
-      const chunkMinutes = Math.min(preferredSession, remainingForTopic, availableWindowSlice);
+      // Determine session chunk:
+      // If remaining time is within 15 minutes of preferredSession and fits in the available window,
+      // combine it into one clean session (e.g., 60m instead of 50m + 10m).
+      let chunkMinutes: number;
+      if (remainingForTopic <= preferredSession + 15 && remainingForTopic <= availableWindowSlice) {
+        chunkMinutes = Math.max(15, remainingForTopic);
+      } else if (remainingForTopic <= preferredSession) {
+        chunkMinutes = Math.min(Math.max(15, remainingForTopic), availableWindowSlice);
+      } else {
+        chunkMinutes = Math.min(preferredSession, availableWindowSlice);
+      }
+
+      if (chunkMinutes > availableWindowSlice) {
+        chunkMinutes = availableWindowSlice;
+      }
 
       if (chunkMinutes < 15) {
-        break; // Window slice too small for a meaningful session
+        break;
       }
 
       const sessionStart = minutesToDate(win.date, currentWindowPointer);
@@ -448,7 +465,7 @@ export function generateStudyPlan(input: StudyPlanInput): StudyPlanResult {
         priorityExplanation: selected.explanation,
       });
 
-      const updatedRemaining = remainingForTopic - chunkMinutes;
+      const updatedRemaining = Math.max(0, remainingForTopic - chunkMinutes);
       remainingMinutesMap.set(selected.topic.id, updatedRemaining);
 
       if (updatedRemaining <= 0) {
@@ -476,7 +493,9 @@ export function generateStudyPlan(input: StudyPlanInput): StudyPlanResult {
         if (subject?.examDate) {
           const examDate = typeof subject.examDate === 'string' ? parseISO(subject.examDate) : subject.examDate;
           if (isAfter(new Date(), examDate)) {
-            reason = 'Examination date has already passed.';
+            reason = `Examination date (${format(examDate, 'MMM d, yyyy')}) has already passed.`;
+          } else {
+            reason = `Insufficient study hours available before the exam date (${format(examDate, 'MMM d, yyyy')}).`;
           }
         }
       }
@@ -500,6 +519,11 @@ export function generateStudyPlan(input: StudyPlanInput): StudyPlanResult {
   let feasibilityScore = Math.round(coveragePercent);
 
   if (unscheduledTopics.length > 0) {
+    const hasExamDeadlines = unscheduledTopics.some((u) => {
+      const subj = subjectMap.get(pendingTopics.find((t) => t.id === u.topicId)?.subjectId || '');
+      return !!subj?.examDate;
+    });
+
     if (coveragePercent >= 70) {
       feasibilityStatus = 'tight';
       warnings.push(
@@ -507,9 +531,15 @@ export function generateStudyPlan(input: StudyPlanInput): StudyPlanResult {
       );
     } else {
       feasibilityStatus = 'infeasible';
-      warnings.push(
-        `Critical capacity shortfall: ${unscheduledTopics.length} out of ${totalTopics} topics cannot fit before their deadlines.`
-      );
+      if (hasExamDeadlines) {
+        warnings.push(
+          `Critical capacity shortfall: ${unscheduledTopics.length} out of ${totalTopics} topic(s) cannot fit before their exam deadlines.`
+        );
+      } else {
+        warnings.push(
+          `Capacity shortfall: ${unscheduledTopics.length} out of ${totalTopics} topic(s) cannot fit within the available study hours.`
+        );
+      }
     }
   }
 

@@ -70,6 +70,49 @@ describe('Deterministic Scheduling Engine Foundation', () => {
     expect(result.feasibility.unscheduledTopics.length).toBe(0);
   });
 
+  it('correctly schedules multiple 60-minute topics when preferred session is 50 minutes without remainder stall', () => {
+    const subjects: SubjectInput[] = [
+      { id: 'subj-1', name: 'Mathematics', importance: 4 },
+    ];
+    const topics: TopicInput[] = [
+      {
+        id: 'top-1',
+        subjectId: 'subj-1',
+        title: 'Integration',
+        difficulty: 'medium',
+        importance: 4,
+        estimatedMinutes: 60,
+        status: 'not_started',
+      },
+      {
+        id: 'top-2',
+        subjectId: 'subj-1',
+        title: 'Differentiation',
+        difficulty: 'medium',
+        importance: 4,
+        estimatedMinutes: 60,
+        status: 'not_started',
+      },
+    ];
+
+    const input: StudyPlanInput = {
+      subjects,
+      topics,
+      availability: baseAvailability,
+      startDate: new Date('2026-11-02T00:00:00Z'),
+      endDate: new Date('2026-11-06T00:00:00Z'),
+      preferredSessionMinutes: 50,
+      breakMinutes: 10,
+    };
+
+    const result = generateStudyPlan(input);
+    expect(result.feasibility.status).toBe('feasible');
+    expect(result.feasibility.score).toBe(100);
+    expect(result.feasibility.scheduledTopics).toBe(2);
+    expect(result.feasibility.unscheduledTopics.length).toBe(0);
+    expect(result.sessions.length).toBeGreaterThanOrEqual(2);
+  });
+
   it('prioritizes topics with urgent exam dates over distant exams', () => {
     const today = new Date('2026-11-01T00:00:00Z');
     const urgentSubject: SubjectInput = {

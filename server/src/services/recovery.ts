@@ -110,12 +110,23 @@ export function recoverMissedSession(input: RecoveryInput): RecoveryProposal {
 
     let pointer = win.startMin;
     while (pointer + 15 <= win.endMin && recoveredMinutes < minutesToRecover) {
-      const slotStart = minutesToDate(win.date, pointer);
-      const remainingNeeded = minutesToRecover - recoveredMinutes;
-      const duration = Math.min(preferredSession, remainingNeeded, win.endMin - pointer);
+      const availableSlice = win.endMin - pointer;
+      if (availableSlice < 15) break;
 
+      const remainingNeeded = minutesToRecover - recoveredMinutes;
+      let duration: number;
+      if (remainingNeeded <= preferredSession + 15 && remainingNeeded <= availableSlice) {
+        duration = Math.max(15, remainingNeeded);
+      } else if (remainingNeeded <= preferredSession) {
+        duration = Math.min(Math.max(15, remainingNeeded), availableSlice);
+      } else {
+        duration = Math.min(preferredSession, availableSlice);
+      }
+
+      if (duration > availableSlice) duration = availableSlice;
       if (duration < 15) break;
 
+      const slotStart = minutesToDate(win.date, pointer);
       const slotEnd = minutesToDate(win.date, pointer + duration);
 
       // Check collision with existing future sessions

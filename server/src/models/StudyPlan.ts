@@ -10,6 +10,8 @@ export interface IFeasibilityInfo {
   unscheduledTopics: Array<{
     topicId: string;
     title: string;
+    subjectName?: string;
+    neededMinutes?: number;
     reason: string;
   }>;
   warnings: string[];
@@ -52,6 +54,8 @@ const FeasibilitySchema = new Schema(
       {
         topicId: String,
         title: String,
+        subjectName: String,
+        neededMinutes: Number,
         reason: String,
       },
     ],

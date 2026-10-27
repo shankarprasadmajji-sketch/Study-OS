@@ -6,6 +6,7 @@ import { dataStore } from '../services/dataStore.js';
 import { generateStudyPlan } from '../services/scheduler.js';
 import { recoverMissedSession } from '../services/recovery.js';
 import { isDateOnlyInPast, toDate } from '../utils/dateValidation.js';
+import { enrichStudySessions } from '../utils/sessionEnricher.js';
 
 export const generatePlanSchema = z.object({
   name: z.string().default('My Smart Study Plan'),
@@ -37,11 +38,12 @@ export const studyPlanController = {
     }
 
     const sessions = await dataStore.findStudySessions(userId, { planId: plan._id.toString() });
+    const enriched = await enrichStudySessions(sessions, userId);
 
     res.status(200).json({
       success: true,
       plan,
-      sessions,
+      sessions: enriched,
     });
   },
 
@@ -140,12 +142,13 @@ export const studyPlanController = {
       }));
 
       const savedSessions = await dataStore.insertStudySessions(sessionDocs);
+      const enriched = await enrichStudySessions(savedSessions, userId);
 
       res.status(201).json({
         success: true,
         message: 'Study plan generated and saved successfully.',
         plan: createdPlan,
-        sessions: savedSessions,
+        sessions: enriched,
         feasibility: result.feasibility,
         metrics: result.metrics,
       });
@@ -173,11 +176,12 @@ export const studyPlanController = {
     }
 
     const sessions = await dataStore.findStudySessions(userId, { planId });
+    const enriched = await enrichStudySessions(sessions, userId);
 
     res.status(200).json({
       success: true,
       plan,
-      sessions,
+      sessions: enriched,
     });
   },
 
@@ -260,12 +264,13 @@ export const studyPlanController = {
       }));
 
       const inserted = await dataStore.insertStudySessions(newDocs);
+      const enriched = await enrichStudySessions(inserted, userId);
 
       res.status(200).json({
         success: true,
         message: 'Missed session recovered and added to your upcoming timetable.',
         applied: true,
-        rescheduledSessions: inserted,
+        rescheduledSessions: enriched,
         proposal,
       });
       return;
