@@ -1,6 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { MusicTrack, STUDY_TRACKS } from '../data/musicTracks.js';
 import { soundSynthesizer } from '../services/soundSynthesizer.js';
+import {
+  loadStoredCustomTracks,
+  saveUploadedTrack,
+  deleteStoredCustomTrack,
+} from '../services/musicStorage.js';
 
 interface MusicContextType {
   currentTrack: MusicTrack | null;
@@ -15,6 +20,8 @@ interface MusicContextType {
   error: string | null;
   filteredTracks: MusicTrack[];
   allTracks: MusicTrack[];
+  customTracks: MusicTrack[];
+  isUploading: boolean;
   playTrack: (track: MusicTrack) => void;
   togglePlay: () => void;
   nextTrack: () => void;
@@ -25,11 +32,14 @@ interface MusicContextType {
   toggleRepeat: () => void;
   toggleShuffle: () => void;
   setActiveCategory: (cat: string) => void;
+  uploadTrack: (file: File) => Promise<MusicTrack>;
+  deleteCustomTrack: (id: string) => Promise<void>;
 }
 
 const MusicContext = createContext<MusicContextType | undefined>(undefined);
 
 export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [customTracks, setCustomTracks] = useState<MusicTrack[]>([]);
   const [currentTrack, setCurrentTrack] = useState<MusicTrack | null>(STUDY_TRACKS[0]);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [volume, setVolumeState] = useState<number>(0.7);
@@ -40,12 +50,30 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [duration, setDuration] = useState<number>(STUDY_TRACKS[0]?.duration || 180);
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [error, setError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState<boolean>(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  // Load custom tracks from IndexedDB on startup
+  useEffect(() => {
+    loadStoredCustomTracks()
+      .then((loaded) => {
+        if (loaded && loaded.length > 0) {
+          setCustomTracks(loaded);
+        }
+      })
+      .catch((err) => {
+        console.warn('[Study Music] Error restoring saved custom tracks:', err);
+      });
+  }, []);
+
+  const allTracks = [...customTracks, ...STUDY_TRACKS];
+
   const filteredTracks =
     activeCategory === 'all'
-      ? STUDY_TRACKS
+      ? allTracks
+      : activeCategory === 'custom'
+      ? customTracks
       : STUDY_TRACKS.filter((t) => t.category === activeCategory);
 
   // Initialize Audio element once
@@ -72,7 +100,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
     const handleError = () => {
-      console.warn('[Study Music] Network stream error. Switching to calm ambient synthesizer.');
+      console.warn('[Study Music] Network or audio playback error. Switching to calm ambient synthesizer.');
       setError('Audio stream unavailable. Playing synthesized ambient sound.');
       if (currentTrack?.synthType === 'whitenoise') {
         soundSynthesizer.playWhiteNoise();
@@ -94,7 +122,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       audio.pause();
       soundSynthesizer.stop();
     };
-  }, [isRepeat]);
+  }, [isRepeat, filteredTracks, currentTrack]);
 
   // Handle play/pause
   const playTrack = (track: MusicTrack) => {
@@ -106,7 +134,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!audio) return;
 
     // Check if it's a pure synthesized sound (e.g. white or pink noise)
-    if (track.category === 'whitenoise' || !track.audioUrl) {
+    if (track.category === 'whitenoise' || (!track.audioUrl && track.synthType)) {
       audio.pause();
       audio.src = '';
       if (track.synthType === 'pinknoise') {
@@ -127,7 +155,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setIsPlaying(true);
       })
       .catch((err) => {
-        console.warn('[Study Music] Autoplay blocked or URL unavailable:', err.message);
+        console.warn('[Study Music] Autoplay blocked or URL unavailable:', err?.message || err);
         // Fallback to binaural synthesizer
         soundSynthesizer.playBinauralFocus();
         setIsPlaying(true);
@@ -136,7 +164,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const togglePlay = () => {
     if (!currentTrack) {
-      if (STUDY_TRACKS.length > 0) playTrack(STUDY_TRACKS[0]);
+      if (allTracks.length > 0) playTrack(allTracks[0]);
       return;
     }
 
@@ -145,7 +173,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       soundSynthesizer.stop();
       setIsPlaying(false);
     } else {
-      if (currentTrack.category === 'whitenoise' || !currentTrack.audioUrl) {
+      if (currentTrack.category === 'whitenoise' || (!currentTrack.audioUrl && currentTrack.synthType)) {
         if (currentTrack.synthType === 'pinknoise') {
           soundSynthesizer.playPinkNoise();
         } else {
@@ -169,21 +197,25 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const handleNext = () => {
-    const list = filteredTracks.length > 0 ? filteredTracks : STUDY_TRACKS;
+    const list = filteredTracks.length > 0 ? filteredTracks : allTracks;
+    if (list.length === 0) return;
+
     if (isShuffle) {
       const randomIndex = Math.floor(Math.random() * list.length);
       playTrack(list[randomIndex]);
       return;
     }
     const currentIndex = list.findIndex((t) => t.id === currentTrack?.id);
-    const nextIndex = (currentIndex + 1) % list.length;
+    const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % list.length : 0;
     playTrack(list[nextIndex]);
   };
 
   const handlePrev = () => {
-    const list = filteredTracks.length > 0 ? filteredTracks : STUDY_TRACKS;
+    const list = filteredTracks.length > 0 ? filteredTracks : allTracks;
+    if (list.length === 0) return;
+
     const currentIndex = list.findIndex((t) => t.id === currentTrack?.id);
-    const prevIndex = (currentIndex - 1 + list.length) % list.length;
+    const prevIndex = currentIndex >= 0 ? (currentIndex - 1 + list.length) % list.length : 0;
     playTrack(list[prevIndex]);
   };
 
@@ -212,6 +244,45 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     soundSynthesizer.setVolume(nextMuted ? 0 : volume);
   };
 
+  const uploadTrack = async (file: File): Promise<MusicTrack> => {
+    setIsUploading(true);
+    setError(null);
+    try {
+      const newTrack = await saveUploadedTrack(file);
+      setCustomTracks((prev) => [newTrack, ...prev.filter((t) => t.id !== newTrack.id)]);
+      setActiveCategory('custom');
+      playTrack(newTrack);
+      return newTrack;
+    } catch (err: any) {
+      const errorMsg = err?.message || 'Failed to process and upload audio file.';
+      setError(errorMsg);
+      throw err;
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const deleteCustomTrack = async (id: string): Promise<void> => {
+    try {
+      await deleteStoredCustomTrack(id);
+      setCustomTracks((prev) => prev.filter((t) => t.id !== id));
+      if (currentTrack?.id === id) {
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.src = '';
+        }
+        setIsPlaying(false);
+        const fallback = STUDY_TRACKS[0];
+        if (fallback) {
+          setCurrentTrack(fallback);
+        }
+      }
+    } catch (err) {
+      console.error('[Study Music] Error deleting track:', err);
+      setError('Could not delete track from storage.');
+    }
+  };
+
   return (
     <MusicContext.Provider
       value={{
@@ -226,7 +297,9 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         activeCategory,
         error,
         filteredTracks,
-        allTracks: STUDY_TRACKS,
+        allTracks,
+        customTracks,
+        isUploading,
         playTrack,
         togglePlay,
         nextTrack: handleNext,
@@ -237,6 +310,8 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         toggleRepeat: () => setIsRepeat((prev) => !prev),
         toggleShuffle: () => setIsShuffle((prev) => !prev),
         setActiveCategory,
+        uploadTrack,
+        deleteCustomTrack,
       }}
     >
       {children}

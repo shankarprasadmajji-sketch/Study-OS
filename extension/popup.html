@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StudyOS Focus Blocker</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <header class="header">
+      <div class="brand">
+        <div class="logo">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </div>
+        <span class="brand-title">StudyOS Focus</span>
+      </div>
+      <span class="status-badge" id="statusBadge">Checking...</span>
+    </header>
+
+    <div class="content">
+      <div class="status-card" id="statusCard">
+        <p class="status-title" id="statusTitle">Focus Mode Idle</p>
+        <p class="status-desc" id="statusDesc">Start a focus session in StudyOS to activate website blocking.</p>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat-col">
+          <span class="stat-number" id="blockedCount">0</span>
+          <span class="stat-label">Sites in Blocklist</span>
+        </div>
+        <div class="stat-col">
+          <span class="stat-number" id="rulesCount">0</span>
+          <span class="stat-label">Active DNR Rules</span>
+        </div>
+      </div>
+
+      <div class="actions">
+        <a href="http://localhost:5173/app/focus" target="_blank" class="btn btn-primary" id="openWebBtn">
+          Launch StudyOS Timer &rarr;
+        </a>
+      </div>
+    </div>
+
+    <footer class="footer">
+      <span>Manifest V3 • Real Distraction Blocker</span>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

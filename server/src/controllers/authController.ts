@@ -23,6 +23,14 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Password is required'),
 });
 
+export const googleAuthSchema = z.object({
+  email: z.string().email('Please enter a valid email address'),
+  name: z.string().min(1, 'Name is required'),
+  credential: z.string().optional(),
+  googleId: z.string().optional(),
+  picture: z.string().optional(),
+});
+
 export function generateTokens(userId: string, email: string, name: string) {
   const payload = { userId, email, name };
   const accessToken = jwt.sign(payload, config.jwtAccessSecret, { expiresIn: '7d' });
@@ -214,6 +222,78 @@ export const authController = {
     res.status(200).json({
       success: true,
       message: 'Password has been successfully updated. You may now log in.',
+    });
+  },
+
+  async googleAuth(req: Request, res: Response): Promise<void> {
+    let { email, name, credential, googleId, picture } = req.body;
+
+    // Decode JWT payload if credential from Google Identity Services is present
+    if (credential && typeof credential === 'string') {
+      try {
+        const parts = credential.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf-8'));
+          if (payload.email) {
+            email = payload.email;
+            name = payload.name || name;
+            picture = payload.picture || picture;
+            googleId = payload.sub || googleId;
+          }
+        }
+      } catch (err) {
+        console.warn('[Auth] Error decoding Google credential JWT:', err);
+      }
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    let user = await dataStore.findUserByEmail(normalizedEmail);
+
+    if (!user) {
+      user = await dataStore.createUser({
+        name: name || normalizedEmail.split('@')[0],
+        email: normalizedEmail,
+        googleId: googleId || `google-${Date.now()}`,
+        avatar: picture || '',
+        authProvider: 'google',
+        timezone: 'UTC',
+        educationLevel: 'Undergraduate',
+        academicYear: 'Year 1',
+        onboardingCompleted: false,
+        theme: 'light',
+        preferences: {
+          preferredSessionMinutes: 50,
+          breakMinutes: 10,
+          dailyTargetHours: 4,
+          reminderNotifications: true,
+        },
+      });
+    } else {
+      const updates: any = {};
+      if (googleId && !user.googleId) updates.googleId = googleId;
+      if (picture && !user.avatar) updates.avatar = picture;
+      if (Object.keys(updates).length > 0) {
+        const updated = await dataStore.updateUser(user._id.toString(), updates);
+        if (updated) user = updated;
+      }
+    }
+
+    const safeUser = { ...user };
+    delete safeUser.passwordHash;
+
+    const { accessToken, refreshToken } = generateTokens(
+      safeUser._id.toString(),
+      safeUser.email,
+      safeUser.name
+    );
+    setTokenCookies(res, accessToken, refreshToken);
+
+    res.status(200).json({
+      success: true,
+      message: 'Google authentication successful.',
+      user: safeUser,
+      accessToken,
+      isDemoMode: !dataStore.isUsingMongoDB(),
     });
   },
 };

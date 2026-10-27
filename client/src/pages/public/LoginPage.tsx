@@ -8,6 +8,7 @@ import { useAuth } from '../../context/AuthContext.js';
 import { Button } from '../../components/ui/Button.js';
 import { Card } from '../../components/ui/Card.js';
 import { DatabaseBadge } from '../../components/layout/DatabaseBadge.js';
+import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton.js';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -29,10 +30,13 @@ export const LoginPage: React.FC = () => {
     register,
     handleSubmit,
     setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
   });
+
+  const currentEmail = watch('email');
 
   const onSubmit = async (data: LoginFormData) => {
     setErrorMessage(null);
@@ -90,6 +94,27 @@ export const LoginPage: React.FC = () => {
               <span>{errorMessage}</span>
             </div>
           )}
+
+          {/* 1-Click Google Sign In */}
+          <div className="space-y-4 mb-5">
+            <GoogleSignInButton
+              text="Continue with Google"
+              defaultEmail={currentEmail}
+              onSuccess={() => navigate(from, { replace: true })}
+              onError={(err) => setErrorMessage(err)}
+            />
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-[10px] uppercase tracking-wider">
+                <span className="bg-card px-2.5 text-muted-foreground font-semibold">
+                  Or continue with email
+                </span>
+              </div>
+            </div>
+          </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div>

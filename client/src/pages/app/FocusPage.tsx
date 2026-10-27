@@ -13,6 +13,12 @@ import {
   Music2,
   FileText,
   SkipForward,
+  Shield,
+  ShieldAlert,
+  ShieldCheck,
+  Sliders,
+  HelpCircle,
+  AlertTriangle,
 } from 'lucide-react';
 import { apiRequest } from '../../api/client.js';
 import { Topic } from '../../types/index.js';
@@ -21,9 +27,27 @@ import { Button } from '../../components/ui/Button.js';
 import { Badge } from '../../components/ui/Badge.js';
 import { useMusic } from '../../context/MusicContext.js';
 import { QuickNoteModal } from '../../components/notes/QuickNoteModal.js';
+import {
+  checkExtensionStatus,
+  startExtensionFocus,
+  pauseExtensionFocus,
+  resumeExtensionFocus,
+  endExtensionFocus,
+  getExtensionBlocklist,
+  updateExtensionBlocklist,
+  updateExtensionSettings,
+  ExtensionStatus,
+  BlocklistItem,
+  ExtensionSettings,
+  DEFAULT_BLOCKLIST,
+  DEFAULT_SETTINGS,
+} from '../../services/focusExtension.js';
+import { ExtensionSetupModal } from '../../components/focus/ExtensionSetupModal.js';
+import { BlocklistModal } from '../../components/focus/BlocklistModal.js';
+import { EarlyEndModal } from '../../components/focus/EarlyEndModal.js';
 
 export const FocusPage: React.FC = () => {
-  const { currentTrack, isPlaying: isMusicPlaying, togglePlay: toggleMusic, nextTrack, volume: musicVolume, setVolume: setMusicVolume } = useMusic();
+  const { currentTrack, isPlaying: isMusicPlaying, togglePlay: toggleMusic, nextTrack } = useMusic();
 
   const [topics, setTopics] = useState<Topic[]>([]);
   const [selectedTopicId, setSelectedTopicId] = useState<string>('');
@@ -36,8 +60,57 @@ export const FocusPage: React.FC = () => {
   const [isQuickNoteOpen, setIsQuickNoteOpen] = useState(false);
   const [pauseMusicOnTimerPause, setPauseMusicOnTimerPause] = useState(false);
 
+  // Distraction Blocker Extension States
+  const [extensionStatus, setExtensionStatus] = useState<ExtensionStatus>({
+    isAvailable: false,
+    isFocusActive: false,
+    isPaused: false,
+    blockedCount: 0,
+    activeRuleCount: 0,
+    topicTitle: '',
+    settings: DEFAULT_SETTINGS,
+  });
+  const [blocklist, setBlocklist] = useState<BlocklistItem[]>(DEFAULT_BLOCKLIST);
+  const [extensionSettings, setExtensionSettings] = useState<ExtensionSettings>(DEFAULT_SETTINGS);
+  const [isSetupModalOpen, setIsSetupModalOpen] = useState(false);
+  const [isBlocklistModalOpen, setIsBlocklistModalOpen] = useState(false);
+  const [isEarlyEndModalOpen, setIsEarlyEndModalOpen] = useState(false);
+  const [blockingWarning, setBlockingWarning] = useState<string | null>(null);
+
   // Interval reference
   const intervalRef = useRef<any>(null);
+
+  // Check extension availability and sync state
+  const syncWithExtension = async () => {
+    try {
+      const status = await checkExtensionStatus();
+      setExtensionStatus(status);
+      if (status.isAvailable) {
+        const data = await getExtensionBlocklist();
+        setBlocklist(data.blocklist);
+        setExtensionSettings(data.settings);
+
+        // Anti-bypass state restoration: if extension was already in an active session
+        if (status.isFocusActive && !isRunning) {
+          setMode('focus');
+          if (!status.isPaused) {
+            setIsRunning(true);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[Focus Mode] Extension probe:', err);
+    }
+  };
+
+  useEffect(() => {
+    syncWithExtension();
+
+    // Re-check when extension reports ready via custom DOM event
+    const handleExtReady = () => syncWithExtension();
+    window.addEventListener('studyos-extension-ready', handleExtReady);
+    return () => window.removeEventListener('studyos-extension-ready', handleExtReady);
+  }, []);
 
   useEffect(() => {
     const fetchTopics = async () => {
@@ -78,6 +151,9 @@ export const FocusPage: React.FC = () => {
     };
   }, [isRunning, mode]);
 
+  const selectedTopic = topics.find((t) => t._id === selectedTopicId);
+  const currentTopicTitle = selectedTopic ? selectedTopic.title : 'Study Focus Sprint';
+
   const handleTimerComplete = async () => {
     setSessionCompletedNotice(true);
 
@@ -117,27 +193,130 @@ export const FocusPage: React.FC = () => {
         // Ignore
       }
     }
+
+    // Follow configured session completion policy for website unblocking
+    if (extensionStatus.isAvailable && extensionStatus.isFocusActive) {
+      if (extensionSettings.completeBehavior === 'auto_release') {
+        try {
+          await endExtensionFocus('timer_completed');
+          setExtensionStatus((prev) => ({
+            ...prev,
+            isFocusActive: false,
+            isPaused: false,
+            blockedCount: 0,
+          }));
+        } catch (err) {
+          console.warn('[Focus Mode] Could not auto-release extension rules:', err);
+        }
+      }
+    }
   };
 
-  const handleStart = () => {
-    setIsRunning(true);
+  const handleStart = async () => {
     setSessionCompletedNotice(false);
+    setBlockingWarning(null);
+
+    // If starting a Focus session, activate extension blocking
+    if (mode === 'focus') {
+      try {
+        const status = await checkExtensionStatus();
+        setExtensionStatus(status);
+
+        if (status.isAvailable) {
+          if (status.isPaused) {
+            // Resume previously paused session
+            await resumeExtensionFocus();
+            setExtensionStatus((prev) => ({ ...prev, isPaused: false }));
+          } else {
+            // Start brand new session
+            const result = await startExtensionFocus({
+              durationMinutes: targetMinutes,
+              topicTitle: currentTopicTitle,
+            });
+            if (result.success) {
+              setExtensionStatus((prev) => ({
+                ...prev,
+                isFocusActive: true,
+                isPaused: false,
+                blockedCount: result.blockedCount,
+              }));
+            }
+          }
+        } else {
+          setBlockingWarning(
+            'Extension not detected. Timer started, but website blocking is inactive. Click "Setup Extension" to enable.'
+          );
+        }
+      } catch {
+        setBlockingWarning('Unable to reach distraction blocker extension.');
+      }
+    }
+
+    setIsRunning(true);
   };
 
-  const handlePause = () => {
+  const handlePause = async () => {
     setIsRunning(false);
     if (pauseMusicOnTimerPause && isMusicPlaying) {
       toggleMusic();
     }
+
+    // Relay pause command to extension (follows user's pause anti-bypass policy)
+    if (extensionStatus.isAvailable && extensionStatus.isFocusActive) {
+      try {
+        await pauseExtensionFocus();
+        setExtensionStatus((prev) => ({
+          ...prev,
+          isPaused: true,
+        }));
+      } catch (err) {
+        console.warn('[Focus Mode] Could not pause extension session:', err);
+      }
+    }
   };
 
   const handleReset = () => {
+    // Anti-Bypass: Require explicit confirmation before ending an active focus session early
+    if (extensionStatus.isAvailable && extensionStatus.isFocusActive && isRunning) {
+      setIsEarlyEndModalOpen(true);
+      return;
+    }
+    executeEndSession();
+  };
+
+  const executeEndSession = async () => {
     setIsRunning(false);
     setSecondsLeft(targetMinutes * 60);
     setSessionCompletedNotice(false);
+    setIsEarlyEndModalOpen(false);
+
+    // End focus session in extension and unblock websites
+    if (extensionStatus.isAvailable && extensionStatus.isFocusActive) {
+      try {
+        await endExtensionFocus('user_early_end');
+        setExtensionStatus((prev) => ({
+          ...prev,
+          isFocusActive: false,
+          isPaused: false,
+          blockedCount: 0,
+        }));
+      } catch (err) {
+        console.warn('[Focus Mode] Could not release extension blocking:', err);
+      }
+    }
   };
 
   const handleModeChange = (newMode: 'focus' | 'break') => {
+    if (extensionStatus.isAvailable && extensionStatus.isFocusActive) {
+      endExtensionFocus('mode_change').catch(() => {});
+      setExtensionStatus((prev) => ({
+        ...prev,
+        isFocusActive: false,
+        isPaused: false,
+        blockedCount: 0,
+      }));
+    }
+
     setMode(newMode);
     setIsRunning(false);
     setSessionCompletedNotice(false);
@@ -147,6 +326,15 @@ export const FocusPage: React.FC = () => {
   };
 
   const setCustomMinutes = (mins: number) => {
+    if (extensionStatus.isAvailable && extensionStatus.isFocusActive) {
+      endExtensionFocus('preset_change').catch(() => {});
+      setExtensionStatus((prev) => ({
+        ...prev,
+        isFocusActive: false,
+        isPaused: false,
+        blockedCount: 0,
+      }));
+    }
     setTargetMinutes(mins);
     setSecondsLeft(mins * 60);
     setIsRunning(false);
@@ -160,6 +348,7 @@ export const FocusPage: React.FC = () => {
   };
 
   const progressPercent = ((targetMinutes * 60 - secondsLeft) / (targetMinutes * 60)) * 100;
+  const enabledWebsitesCount = blocklist.filter((b) => b.enabled).length;
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -171,19 +360,127 @@ export const FocusPage: React.FC = () => {
             Distraction-Free Focus Mode
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Pomodoro interval timer integrated with Study Music and Quick Notes.
+            Pomodoro interval timer integrated with real website blocking, Study Music, and Quick Notes.
           </p>
         </div>
 
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => setIsQuickNoteOpen(true)}
-          leftIcon={<FileText className="w-3.5 h-3.5" />}
-        >
-          Quick Note
-        </Button>
+        <div className="flex items-center justify-center sm:justify-end gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIsQuickNoteOpen(true)}
+            leftIcon={<FileText className="w-3.5 h-3.5" />}
+          >
+            Quick Note
+          </Button>
+        </div>
       </div>
+
+      {/* Real Website Distraction Blocker Extension Status Banner */}
+      <div className="p-4 rounded-2xl border border-border bg-card shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3.5 text-xs">
+        <div className="flex items-center gap-3">
+          <div
+            className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 transition-all ${
+              extensionStatus.isAvailable
+                ? extensionStatus.isFocusActive
+                  ? 'bg-emerald-500 text-white shadow-md ring-4 ring-emerald-500/20'
+                  : 'bg-primary-100 text-primary-600 dark:bg-primary-950 dark:text-primary-400'
+                : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400'
+            }`}
+          >
+            {extensionStatus.isAvailable ? (
+              extensionStatus.isFocusActive ? (
+                <ShieldCheck className="w-5 h-5 animate-pulse" />
+              ) : (
+                <Shield className="w-5 h-5" />
+              )
+            ) : (
+              <ShieldAlert className="w-5 h-5" />
+            )}
+          </div>
+
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-bold text-foreground text-sm">
+                {extensionStatus.isAvailable
+                  ? extensionStatus.isFocusActive
+                    ? extensionStatus.isPaused
+                      ? extensionSettings.pauseBehavior === 'keep_blocking'
+                        ? 'Distraction Blocking Active (Timer Paused • Anti-Bypass Enforced)'
+                        : 'Distraction Blocking Paused'
+                      : `Distraction Blocking Active (${extensionStatus.blockedCount} websites blocked)`
+                    : `Distraction Blocker Ready (${enabledWebsitesCount} websites configured)`
+                  : 'Distraction Blocker Companion Disconnected'}
+              </span>
+
+              <Badge
+                variant={
+                  extensionStatus.isAvailable
+                    ? extensionStatus.isFocusActive
+                      ? 'success'
+                      : 'info'
+                    : 'warning'
+                }
+                size="sm"
+              >
+                {extensionStatus.isAvailable
+                  ? extensionStatus.isFocusActive
+                    ? 'Blocking Active'
+                    : 'Companion Ready'
+                  : 'Extension Offline'}
+              </Badge>
+            </div>
+
+            <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+              {extensionStatus.isAvailable
+                ? extensionStatus.isFocusActive
+                  ? 'Distracting websites (YouTube, Reddit, Netflix, etc.) redirected to StudyOS blocked screen in all tabs.'
+                  : 'Websites will be automatically blocked as soon as you start a focus sprint.'
+                : 'Install the StudyOS Chrome Manifest V3 companion to block websites on your device.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIsBlocklistModalOpen(true)}
+            leftIcon={<Sliders className="w-3.5 h-3.5" />}
+            className="text-xs"
+          >
+            Blocklist & Policy
+          </Button>
+
+          {!extensionStatus.isAvailable && (
+            <Button
+              size="sm"
+              onClick={() => setIsSetupModalOpen(true)}
+              leftIcon={<HelpCircle className="w-3.5 h-3.5" />}
+              className="text-xs shadow-sm"
+            >
+              Setup Blocker
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {blockingWarning && (
+        <div className="p-3.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-200 text-xs flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>{blockingWarning}</span>
+          </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setIsSetupModalOpen(true)}
+            className="text-xs font-semibold text-amber-800 dark:text-amber-200 underline"
+          >
+            Setup Guide
+          </Button>
+        </div>
+      )}
 
       {/* Main Timer Display Card */}
       <Card className="p-6 sm:p-10 text-center border-border shadow-elevated bg-card relative overflow-hidden">
@@ -374,6 +671,42 @@ export const FocusPage: React.FC = () => {
           </div>
         )}
       </Card>
+
+      {/* Extension Setup Guide Modal */}
+      <ExtensionSetupModal
+        isOpen={isSetupModalOpen}
+        onClose={() => setIsSetupModalOpen(false)}
+        onStatusChange={(status) => setExtensionStatus(status)}
+      />
+
+      {/* Blocklist & Anti-Bypass Settings Modal */}
+      <BlocklistModal
+        isOpen={isBlocklistModalOpen}
+        onClose={() => setIsBlocklistModalOpen(false)}
+        blocklist={blocklist}
+        settings={extensionSettings}
+        isFocusActive={extensionStatus.isFocusActive}
+        onSaveBlocklist={async (updated) => {
+          setBlocklist(updated);
+          if (extensionStatus.isAvailable) {
+            await updateExtensionBlocklist(updated);
+          }
+        }}
+        onSaveSettings={async (updated) => {
+          setExtensionSettings(updated);
+          if (extensionStatus.isAvailable) {
+            await updateExtensionSettings(updated);
+          }
+        }}
+      />
+
+      {/* Anti-Bypass Early End Confirmation Dialog */}
+      <EarlyEndModal
+        isOpen={isEarlyEndModalOpen}
+        minutesRemaining={Math.max(1, Math.ceil(secondsLeft / 60))}
+        onCancel={() => setIsEarlyEndModalOpen(false)}
+        onConfirmEnd={executeEndSession}
+      />
 
       {/* Quick Note Modal */}
       <QuickNoteModal

@@ -9,6 +9,9 @@ export interface User {
   _id: string;
   name: string;
   email: string;
+  avatar?: string;
+  googleId?: string;
+  authProvider?: 'local' | 'google';
   educationLevel?: string;
   academicYear?: string;
   timezone: string;

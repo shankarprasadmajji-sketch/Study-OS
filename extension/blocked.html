@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StudyOS — Focus Session Active (Website Blocked)</title>
+  <link rel="stylesheet" href="blocked.css">
+</head>
+<body>
+  <div class="stars-bg"></div>
+
+  <main class="card">
+    <div class="shield-container">
+      <div class="shield-halo"></div>
+      <div class="shield-icon">
+        <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <path d="m9 12 2 2 4-4"/>
+        </svg>
+      </div>
+    </div>
+
+    <div class="brand-tag">
+      <span class="pulse-dot"></span>
+      StudyOS Focus Mode Active
+    </div>
+
+    <h1 class="headline">Distraction Blocked</h1>
+
+    <div class="domain-pill" id="domainPill">
+      <span id="blockedDomainName">This website</span> is currently blocked
+    </div>
+
+    <p class="description">
+      You are in the middle of a focused study sprint. Stay with your material to protect your flow state and finish your syllabus faster.
+    </p>
+
+    <!-- Session details if available -->
+    <div class="session-box" id="sessionBox" style="display: none;">
+      <div class="session-item">
+        <span class="session-label">Topic</span>
+        <span class="session-val" id="sessionTopic">—</span>
+      </div>
+      <div class="session-item">
+        <span class="session-label">Status</span>
+        <span class="session-val text-emerald" id="sessionStatus">Enforced</span>
+      </div>
+    </div>
+
+    <div class="actions">
+      <a href="http://localhost:5173/app/focus" id="returnBtn" class="btn btn-primary">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="5 3 19 12 5 21 5 3"/>
+        </svg>
+        Return to Focus Timer
+      </a>
+      <button type="button" id="closeTabBtn" class="btn btn-secondary">
+        Close This Tab
+      </button>
+    </div>
+
+    <div class="quote-card">
+      <p class="quote-text" id="quoteText">
+        "Deep work is the ability to focus without distraction on a cognitively demanding task."
+      </p>
+      <span class="quote-author" id="quoteAuthor">— Cal Newport, Deep Work</span>
+    </div>
+
+    <footer class="privacy-note">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+      <span>Local Protection • No browsing history or personal data is ever collected or tracked</span>
+    </footer>
+  </main>
+
+  <script src="blocked.js"></script>
+</body>
+</html>

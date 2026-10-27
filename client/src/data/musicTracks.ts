@@ -2,16 +2,18 @@ export interface MusicTrack {
   id: string;
   title: string;
   artist: string;
-  category: 'lofi' | 'instrumental' | 'piano' | 'ambient' | 'nature' | 'whitenoise';
+  category: 'lofi' | 'instrumental' | 'piano' | 'ambient' | 'nature' | 'whitenoise' | 'custom';
   categoryLabel: string;
   duration: number; // in seconds
   audioUrl: string;
   coverUrl?: string;
   synthType?: 'rain' | 'waves' | 'whitenoise' | 'pinknoise' | 'binaural';
+  isCustom?: boolean;
 }
 
 export const CATEGORIES = [
   { id: 'all', label: 'All Tracks' },
+  { id: 'custom', label: 'My Uploads' },
   { id: 'lofi', label: 'Lo-Fi Study Beats' },
   { id: 'piano', label: 'Calm Piano' },
   { id: 'ambient', label: 'Deep Focus Ambient' },

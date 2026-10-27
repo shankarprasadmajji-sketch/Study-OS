@@ -74,6 +74,7 @@ export function createApp(): Application {
 
   app.use('/api/v1/auth/login', authLimiter);
   app.use('/api/v1/auth/register', authLimiter);
+  app.use('/api/v1/auth/google', authLimiter);
 
   // Root greeting
   app.get('/', (_req: Request, res: Response) => {

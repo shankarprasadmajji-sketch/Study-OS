@@ -11,7 +11,10 @@ export interface IUser extends Document {
   _id: mongoose.Types.ObjectId;
   name: string;
   email: string;
-  passwordHash: string;
+  passwordHash?: string;
+  googleId?: string;
+  avatar?: string;
+  authProvider?: 'local' | 'google';
   educationLevel?: string;
   academicYear?: string;
   timezone: string;
@@ -42,8 +45,22 @@ const UserSchema = new Schema<IUser>(
     },
     passwordHash: {
       type: String,
-      required: [true, 'Password hash is required'],
+      required: false,
       select: false,
+    },
+    googleId: {
+      type: String,
+      sparse: true,
+      index: true,
+    },
+    avatar: {
+      type: String,
+      default: '',
+    },
+    authProvider: {
+      type: String,
+      enum: ['local', 'google'],
+      default: 'local',
     },
     educationLevel: {
       type: String,

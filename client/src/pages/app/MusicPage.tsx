@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Play,
@@ -14,9 +14,15 @@ import {
   Headphones,
   Sparkles,
   Info,
+  Upload,
+  UploadCloud,
+  Trash2,
+  CheckCircle2,
+  FileAudio,
+  X,
 } from 'lucide-react';
 import { useMusic } from '../../context/MusicContext.js';
-import { CATEGORIES, MusicTrack } from '../../data/musicTracks.js';
+import { CATEGORIES } from '../../data/musicTracks.js';
 import { Card } from '../../components/ui/Card.js';
 import { Button } from '../../components/ui/Button.js';
 import { Badge } from '../../components/ui/Badge.js';
@@ -43,8 +49,17 @@ export const MusicPage: React.FC = () => {
     activeCategory,
     setActiveCategory,
     filteredTracks,
+    customTracks,
+    uploadTrack,
+    deleteCustomTrack,
+    isUploading,
     error,
   } = useMusic();
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [showUploadZone, setShowUploadZone] = useState(false);
 
   const formatTime = (secs: number) => {
     if (isNaN(secs) || secs < 0) return '0:00';
@@ -55,8 +70,83 @@ export const MusicPage: React.FC = () => {
 
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
+  const handleProcessFiles = async (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) return;
+    const files = Array.from(fileList);
+    const audioFiles = files.filter(
+      (f) =>
+        f.type.startsWith('audio/') ||
+        /\.(mp3|wav|ogg|m4a|aac|flac)$/i.test(f.name)
+    );
+
+    if (audioFiles.length === 0) {
+      setNotification({
+        message: 'Please choose valid audio files (.mp3, .wav, .ogg, .m4a, .aac).',
+        type: 'error',
+      });
+      return;
+    }
+
+    try {
+      let lastUploaded = null;
+      for (const file of audioFiles) {
+        lastUploaded = await uploadTrack(file);
+      }
+
+      setNotification({
+        message:
+          audioFiles.length === 1
+            ? `Successfully uploaded "${lastUploaded?.title}"! Playing now.`
+            : `Successfully uploaded ${audioFiles.length} MP3 tracks to your library!`,
+        type: 'success',
+      });
+      setShowUploadZone(false);
+    } catch {
+      setNotification({
+        message: 'Could not process one or more audio files. Please try again.',
+        type: 'error',
+      });
+    } finally {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    handleProcessFiles(e.target.files);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    handleProcessFiles(e.dataTransfer.files);
+  };
+
   return (
-    <div className="space-y-6">
+    <div
+      className="space-y-6"
+      onDragOver={(e) => {
+        e.preventDefault();
+        setIsDragOver(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+          setIsDragOver(false);
+        }
+      }}
+      onDrop={handleDrop}
+    >
+      {/* Hidden file input for upload */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac"
+        multiple
+        onChange={handleFileInputChange}
+        className="hidden"
+      />
+
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -65,25 +155,109 @@ export const MusicPage: React.FC = () => {
             Study Music Station
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
-            Focus-engineered audio streams: Lo-Fi beats, ambient textures, acoustic piano, and acoustic noise masking.
+            Focus-engineered audio streams: Lo-Fi beats, ambient textures, acoustic piano, and custom MP3 uploads.
           </p>
         </div>
 
-        <Link to="/app/focus">
+        <div className="flex flex-wrap items-center gap-2.5">
           <Button
             size="sm"
-            leftIcon={<Timer className="w-4 h-4" />}
-            className="shadow-sm"
+            variant="outline"
+            leftIcon={<Upload className="w-4 h-4 text-primary-600" />}
+            onClick={() => fileInputRef.current?.click()}
+            isLoading={isUploading}
+            className="shadow-sm border-dashed hover:border-primary-500 hover:text-primary-600 transition-colors"
+            title="Upload custom MP3 audio files to your library"
           >
-            Launch Focus Timer
+            Upload MP3
           </Button>
-        </Link>
+
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setShowUploadZone((prev) => !prev)}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            {showUploadZone ? 'Hide Dropzone' : 'Drag & Drop'}
+          </Button>
+
+          <Link to="/app/focus">
+            <Button
+              size="sm"
+              leftIcon={<Timer className="w-4 h-4" />}
+              className="shadow-sm"
+            >
+              Launch Focus Timer
+            </Button>
+          </Link>
+        </div>
       </div>
 
-      {error && (
+      {/* Upload/System Notification */}
+      {notification && (
+        <div
+          className={`p-3.5 rounded-xl border text-xs flex items-center justify-between gap-3 transition-all ${
+            notification.type === 'success'
+              ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+              : 'bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800 text-red-800 dark:text-red-200'
+          }`}
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            {notification.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+            ) : (
+              <Info className="w-4 h-4 shrink-0 text-red-600" />
+            )}
+            <span className="truncate">{notification.message}</span>
+          </div>
+          <button
+            onClick={() => setNotification(null)}
+            className="p-1 hover:opacity-75 transition-opacity"
+            title="Dismiss notification"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {error && !notification && (
         <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl text-xs text-amber-800 dark:text-amber-200 flex items-center gap-2">
           <Info className="w-4 h-4 shrink-0" />
           <span>{error}</span>
+        </div>
+      )}
+
+      {/* Interactive Dropzone / Upload Area */}
+      {(showUploadZone || isDragOver) && (
+        <div
+          onClick={() => fileInputRef.current?.click()}
+          className={`border-2 border-dashed rounded-3xl p-6 sm:p-8 text-center cursor-pointer transition-all duration-200 select-none ${
+            isDragOver
+              ? 'border-primary-500 bg-primary-50/70 dark:bg-primary-950/50 ring-4 ring-primary-500/20 scale-[1.005]'
+              : 'border-border/80 hover:border-primary-400 bg-card/60 hover:bg-muted/30'
+          }`}
+        >
+          <div className="max-w-md mx-auto space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-primary-100 dark:bg-primary-950/80 text-primary-600 flex items-center justify-center mx-auto shadow-sm">
+              <UploadCloud className="w-6 h-6 animate-pulse" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-foreground">
+                Drag & drop your wished MP3 files here
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Or click to browse from your device. Supported: <strong className="text-foreground">.mp3</strong>, <strong className="text-foreground">.wav</strong>, <strong className="text-foreground">.m4a</strong>, <strong className="text-foreground">.ogg</strong>
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-2 pt-1">
+              <Badge variant="default" size="sm">
+                Stored Locally in Browser
+              </Badge>
+              <Badge variant="info" size="sm">
+                Offline Playable
+              </Badge>
+            </div>
+          </div>
         </div>
       )}
 
@@ -107,17 +281,28 @@ export const MusicPage: React.FC = () => {
                     <span className={`w-1.5 bg-white rounded-full ${isPlaying ? 'animate-bounce' : 'h-6'}`} style={{ animationDuration: '1.1s' }} />
                   </div>
                 </div>
-                <Music2 className="w-12 h-12 text-white/40 absolute -bottom-2 -right-2" />
+                {currentTrack.isCustom ? (
+                  <FileAudio className="w-12 h-12 text-white/40 absolute -bottom-2 -right-2" />
+                ) : (
+                  <Music2 className="w-12 h-12 text-white/40 absolute -bottom-2 -right-2" />
+                )}
               </div>
             </div>
 
             {/* Playback Controls & Info */}
             <div className="md:col-span-8 space-y-5">
               <div>
-                <Badge variant="info" size="sm" className="mb-2">
-                  {currentTrack.categoryLabel}
-                </Badge>
-                <h2 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">
+                <div className="flex items-center gap-2 mb-2">
+                  <Badge variant={currentTrack.isCustom ? 'success' : 'info'} size="sm">
+                    {currentTrack.categoryLabel}
+                  </Badge>
+                  {currentTrack.isCustom && (
+                    <Badge variant="default" size="sm">
+                      Custom MP3
+                    </Badge>
+                  )}
+                </div>
+                <h2 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight truncate">
                   {currentTrack.title}
                 </h2>
                 <p className="text-xs sm:text-sm text-muted-foreground font-medium mt-0.5">
@@ -229,20 +414,64 @@ export const MusicPage: React.FC = () => {
 
       {/* Category Filter Pills */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-        {CATEGORIES.map((cat) => (
-          <button
-            key={cat.id}
-            onClick={() => setActiveCategory(cat.id)}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-colors ${
-              activeCategory === cat.id
-                ? 'bg-primary-600 text-white shadow-sm'
-                : 'bg-card text-muted-foreground hover:text-foreground border border-border hover:bg-muted'
-            }`}
-          >
-            {cat.label}
-          </button>
-        ))}
+        {CATEGORIES.map((cat) => {
+          const isCategorySelected = activeCategory === cat.id;
+          const count = cat.id === 'custom' ? customTracks.length : undefined;
+
+          return (
+            <button
+              key={cat.id}
+              onClick={() => setActiveCategory(cat.id)}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+                isCategorySelected
+                  ? 'bg-primary-600 text-white shadow-sm'
+                  : 'bg-card text-muted-foreground hover:text-foreground border border-border hover:bg-muted'
+              }`}
+            >
+              <span>{cat.label}</span>
+              {typeof count === 'number' && count > 0 && (
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-semibold ${
+                    isCategorySelected
+                      ? 'bg-white/20 text-white'
+                      : 'bg-primary-100 text-primary-700 dark:bg-primary-950 dark:text-primary-300'
+                  }`}
+                >
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
+
+      {/* Empty State for Custom Uploads */}
+      {activeCategory === 'custom' && filteredTracks.length === 0 && (
+        <Card className="p-8 sm:p-12 text-center border-dashed border-2 border-border/80 bg-card/40">
+          <div className="max-w-md mx-auto space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-primary-50 dark:bg-primary-950/60 text-primary-600 flex items-center justify-center mx-auto shadow-sm">
+              <Upload className="w-7 h-7" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-foreground">
+                No custom MP3 files uploaded yet
+              </h3>
+              <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
+                Add your favorite study soundtracks, lo-fi beats, classical audio, or lecture recordings. They are saved directly in your browser and ready to play anytime.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              leftIcon={<Upload className="w-4 h-4" />}
+              onClick={() => fileInputRef.current?.click()}
+              isLoading={isUploading}
+              className="shadow-sm"
+            >
+              Choose MP3 File
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {/* Playlist Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
@@ -254,7 +483,7 @@ export const MusicPage: React.FC = () => {
             <div
               key={track.id}
               onClick={() => playTrack(track)}
-              className={`p-4 rounded-2xl border transition-all cursor-pointer select-none flex items-center justify-between gap-3 ${
+              className={`p-4 rounded-2xl border transition-all cursor-pointer select-none flex items-center justify-between gap-3 group relative ${
                 isSelected
                   ? 'bg-primary-50/70 dark:bg-primary-950/40 border-primary-300 dark:border-primary-800 shadow-sm'
                   : 'bg-card border-border hover:border-primary-200 dark:hover:border-primary-800/60 hover:bg-muted/40'
@@ -276,22 +505,48 @@ export const MusicPage: React.FC = () => {
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold text-foreground truncate">
-                    {track.title}
-                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-xs font-semibold text-foreground truncate">
+                      {track.title}
+                    </p>
+                    {track.isCustom && (
+                      <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.2 rounded bg-primary-100 text-primary-700 dark:bg-primary-950 dark:text-primary-300 shrink-0">
+                        MP3
+                      </span>
+                    )}
+                  </div>
                   <p className="text-[11px] text-muted-foreground truncate">
                     {track.artist}
                   </p>
                 </div>
               </div>
 
-              <div className="text-right shrink-0">
-                <span className="text-xs font-mono text-muted-foreground">
-                  {formatTime(track.duration)}
-                </span>
-                <span className="block text-[10px] text-primary-600 dark:text-primary-400 capitalize">
-                  {track.category}
-                </span>
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="text-right shrink-0">
+                  <span className="text-xs font-mono text-muted-foreground">
+                    {formatTime(track.duration)}
+                  </span>
+                  <span className="block text-[10px] text-primary-600 dark:text-primary-400 capitalize">
+                    {track.isCustom ? 'My Upload' : track.category}
+                  </span>
+                </div>
+
+                {track.isCustom && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteCustomTrack(track.id);
+                      setNotification({
+                        message: `Removed "${track.title}" from your library.`,
+                        type: 'success',
+                      });
+                    }}
+                    className="p-1.5 rounded-lg text-muted-foreground/60 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors opacity-80 group-hover:opacity-100"
+                    title="Delete uploaded MP3"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             </div>
           );
@@ -306,13 +561,13 @@ export const MusicPage: React.FC = () => {
           </div>
           <div className="space-y-1 text-xs text-muted-foreground leading-relaxed">
             <p className="font-semibold text-foreground text-sm">
-              The Cognitive Science of Study Music
+              The Cognitive Science of Study Music & Custom Audio
             </p>
             <p>
-              • <strong>Lo-Fi & Downtempo:</strong> Repetitive 60-90 BPM rhythms engage the brain's default mode network and dampen external auditory distractions without demanding cognitive focus.
+              • <strong>Custom Audio Flexibility:</strong> Uploading your own favorite instrumental playlists, binaural beats, or white noise tracks allows you to tailor your sonic environment to your personalized focus groove.
             </p>
             <p>
-              • <strong>Binaural & Pink Noise:</strong> Pink noise mimics gentle waterfall or rainfall frequencies ($1/f$ power density), which promotes deep alpha and theta brainwave synchronization for extended analytical reading.
+              • <strong>Lo-Fi & Downtempo:</strong> Repetitive 60–90 BPM rhythms engage the brain's default mode network and dampen external auditory distractions without demanding cognitive focus.
             </p>
           </div>
         </div>

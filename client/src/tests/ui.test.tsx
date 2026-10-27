@@ -13,6 +13,9 @@ import { ThemeProvider } from '../context/ThemeContext.js';
 import { MusicProvider } from '../context/MusicContext.js';
 import { MiniMusicPlayer } from '../components/music/MiniMusicPlayer.js';
 import { QuickNoteModal } from '../components/notes/QuickNoteModal.js';
+import { LoginPage } from '../pages/public/LoginPage.js';
+import { SignupPage } from '../pages/public/SignupPage.js';
+import { MusicPage } from '../pages/app/MusicPage.js';
 import { STUDY_TRACKS, CATEGORIES } from '../data/musicTracks.js';
 
 describe('StudyOS UI Components & Feature Expansion', () => {
@@ -69,6 +72,28 @@ describe('StudyOS UI Components & Feature Expansion', () => {
     expect(screen.getByText(/Start Making Progress/i)).toBeInTheDocument();
   });
 
+  it('renders LoginPage with Continue with Google option', () => {
+    render(
+      <BrowserRouter>
+        <AuthProvider>
+          <LoginPage />
+        </AuthProvider>
+      </BrowserRouter>
+    );
+    expect(screen.getByRole('button', { name: /continue with google/i })).toBeInTheDocument();
+  });
+
+  it('renders SignupPage with Sign up with Google option', () => {
+    render(
+      <BrowserRouter>
+        <AuthProvider>
+          <SignupPage />
+        </AuthProvider>
+      </BrowserRouter>
+    );
+    expect(screen.getByRole('button', { name: /sign up with google/i })).toBeInTheDocument();
+  });
+
   // ==========================================
   // STUDY MUSIC TESTS
   // ==========================================
@@ -107,6 +132,19 @@ describe('StudyOS UI Components & Feature Expansion', () => {
       // Play and Next buttons are present
       expect(screen.getByTitle('Play')).toBeInTheDocument();
       expect(screen.getByTitle(/Next/i)).toBeInTheDocument();
+    });
+
+    it('renders MusicPage with Upload MP3 button and My Uploads category', () => {
+      render(
+        <BrowserRouter>
+          <MusicProvider>
+            <MusicPage />
+          </MusicProvider>
+        </BrowserRouter>
+      );
+
+      expect(screen.getByRole('button', { name: /upload mp3/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /my uploads/i })).toBeInTheDocument();
     });
   });
 

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   BarChart3,
   Calendar,
@@ -140,53 +141,68 @@ export const ProgressPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* Streak Card (6 cols) */}
         {streaks && (
-          <Card className="lg:col-span-6 p-6 border-border bg-gradient-to-br from-card via-card to-amber-50/40 dark:to-amber-950/20 relative overflow-hidden">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Flame className="w-4 h-4 fill-amber-500 text-amber-500 animate-pulse" />
-                  Study Streak
-                </span>
-                <div className="flex items-baseline gap-2 mt-2">
-                  <span className="text-4xl sm:text-5xl font-extrabold text-foreground tracking-tight">
-                    {streaks.currentStreak}
+          <Card className={`${accuracy ? 'lg:col-span-6' : 'lg:col-span-12'} p-6 border-border bg-gradient-to-br from-card via-card to-amber-50/40 dark:to-amber-950/20 relative overflow-hidden flex flex-col justify-between`}>
+            <div>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Flame className="w-4 h-4 fill-amber-500 text-amber-500 animate-pulse" />
+                    Study Streak
                   </span>
-                  <span className="text-sm font-semibold text-muted-foreground">
-                    days streak
-                  </span>
+                  <div className="flex items-baseline gap-2 mt-2">
+                    <span className="text-4xl sm:text-5xl font-extrabold text-foreground tracking-tight">
+                      {streaks.currentStreak}
+                    </span>
+                    <span className="text-sm font-semibold text-muted-foreground">
+                      days streak
+                    </span>
+                  </div>
+                  <p className="text-xs text-foreground font-medium mt-1">
+                    {streaks.motivatingMessage}
+                  </p>
                 </div>
-                <p className="text-xs text-foreground font-medium mt-1">
-                  {streaks.motivatingMessage}
-                </p>
-              </div>
 
-              <div className="text-right">
-                <span className="text-[11px] text-muted-foreground block">Longest Streak</span>
-                <span className="text-lg font-bold text-foreground">
-                  🏆 {streaks.longestStreak} days
-                </span>
-                <span
-                  className={`inline-block mt-2 px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${
-                    streaks.isActiveToday
-                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                      : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                  }`}
-                >
-                  {streaks.isActiveToday ? 'Active Today' : 'Pending Today'}
-                </span>
+                <div className="text-right shrink-0">
+                  <span className="text-[11px] text-muted-foreground block">Longest Streak</span>
+                  <span className="text-lg font-bold text-foreground">
+                    🏆 {streaks.longestStreak} days
+                  </span>
+                  <div>
+                    <span
+                      className={`inline-block mt-2 px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                        streaks.isActiveToday
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                          : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                      }`}
+                    >
+                      {streaks.isActiveToday ? 'Active Today' : 'Pending Today'}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
 
             {/* 14-day Heatmap Strip */}
             <div className="mt-5 pt-4 border-t border-border">
-              <span className="text-[11px] font-medium text-muted-foreground block mb-2">
-                Past 14 Days Activity Heatmap ({streaks.timezone})
-              </span>
-              <div className="grid grid-cols-14 gap-1 sm:gap-1.5">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-medium text-muted-foreground block">
+                  Past 14 Days Activity Heatmap ({streaks.timezone})
+                </span>
+                <span className="text-[10px] text-muted-foreground hidden sm:flex items-center gap-1.5">
+                  <span>Inactive</span>
+                  <span className="w-2.5 h-2.5 rounded-sm bg-muted border border-border" />
+                  <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
+                  <span>Active</span>
+                </span>
+              </div>
+              <div
+                className="grid gap-1 sm:gap-1.5 w-full"
+                style={{ gridTemplateColumns: 'repeat(14, minmax(0, 1fr))' }}
+              >
                 {streaks.recentDays.map((day) => (
                   <div
                     key={day.date}
-                    className="flex flex-col items-center gap-1"
+                    className="flex flex-col items-center gap-1 group relative cursor-pointer"
                     title={`${day.date} (${day.dayLabel}): ${
                       day.isCompleted
                         ? `${day.count} sessions completed (${day.minutes}m)`
@@ -194,13 +210,13 @@ export const ProgressPage: React.FC = () => {
                     }`}
                   >
                     <div
-                      className={`w-full aspect-square rounded-md transition-all ${
+                      className={`w-full aspect-square rounded-md transition-all duration-150 ${
                         day.isCompleted
-                          ? 'bg-emerald-500 shadow-sm'
-                          : 'bg-muted border border-border/80'
+                          ? 'bg-emerald-500 shadow-sm shadow-emerald-500/20 group-hover:scale-105'
+                          : 'bg-muted/70 border border-border/80 group-hover:border-muted-foreground/40'
                       }`}
                     />
-                    <span className="text-[9px] text-muted-foreground hidden sm:block">
+                    <span className="text-[9px] font-medium text-muted-foreground">
                       {day.dayLabel.charAt(0)}
                     </span>
                   </div>
@@ -212,68 +228,70 @@ export const ProgressPage: React.FC = () => {
 
         {/* Study Accuracy Card (6 cols) */}
         {accuracy && (
-          <Card className="lg:col-span-6 p-6 border-border bg-gradient-to-br from-card via-card to-primary-50/40 dark:to-primary-950/20 relative">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <span className="text-xs font-bold text-primary-600 dark:text-primary-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Target className="w-4 h-4 text-primary-600" />
-                  Study Completion Accuracy
-                </span>
-
-                <div className="flex items-baseline gap-2 mt-2">
-                  <span className="text-4xl sm:text-5xl font-extrabold text-foreground tracking-tight">
-                    {accuracy.accuracyPercent !== null ? `${accuracy.accuracyPercent}%` : 'N/A'}
+          <Card className={`${streaks ? 'lg:col-span-6' : 'lg:col-span-12'} p-6 border-border bg-gradient-to-br from-card via-card to-primary-50/40 dark:to-primary-950/20 relative flex flex-col justify-between`}>
+            <div>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <span className="text-xs font-bold text-primary-600 dark:text-primary-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Target className="w-4 h-4 text-primary-600" />
+                    Study Completion Accuracy
                   </span>
-                  {accuracy.accuracyPercent === null && (
-                    <span className="text-xs text-muted-foreground font-medium">
-                      (Not enough due tasks)
+
+                  <div className="flex items-baseline gap-2 mt-2">
+                    <span className="text-4xl sm:text-5xl font-extrabold text-foreground tracking-tight">
+                      {accuracy.accuracyPercent !== null ? `${accuracy.accuracyPercent}%` : 'N/A'}
                     </span>
-                  )}
+                    {accuracy.accuracyPercent === null && (
+                      <span className="text-xs text-muted-foreground font-medium">
+                        (Not enough due tasks)
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {accuracy.correctlyCompletedTasks} of {accuracy.totalPlannedSessionsDue} due tasks completed as planned.
+                  </p>
                 </div>
 
-                <p className="text-xs text-muted-foreground mt-1">
-                  {accuracy.correctlyCompletedTasks} of {accuracy.totalPlannedSessionsDue} due tasks completed as planned.
-                </p>
+                {/* Filter & Info */}
+                <div className="flex flex-col items-end gap-2 shrink-0">
+                  <select
+                    value={accuracyRange}
+                    onChange={(e) => setAccuracyRange(e.target.value)}
+                    className="px-2.5 py-1 bg-muted/60 border border-border rounded-lg text-xs text-foreground focus:outline-none"
+                  >
+                    <option value="all">All Time</option>
+                    <option value="week">Past 7 Days</option>
+                    <option value="month">Past 30 Days</option>
+                  </select>
+
+                  <button
+                    onClick={() => setShowFormulaTooltip((prev) => !prev)}
+                    className="text-xs text-primary-600 hover:text-primary-700 flex items-center gap-1"
+                  >
+                    <HelpCircle className="w-3.5 h-3.5" />
+                    <span>How is this calculated?</span>
+                  </button>
+                </div>
               </div>
 
-              {/* Filter & Info */}
-              <div className="flex flex-col items-end gap-2">
-                <select
-                  value={accuracyRange}
-                  onChange={(e) => setAccuracyRange(e.target.value)}
-                  className="px-2.5 py-1 bg-muted/60 border border-border rounded-lg text-xs text-foreground focus:outline-none"
-                >
-                  <option value="all">All Time</option>
-                  <option value="week">Past 7 Days</option>
-                  <option value="month">Past 30 Days</option>
-                </select>
-
-                <button
-                  onClick={() => setShowFormulaTooltip((prev) => !prev)}
-                  className="text-xs text-primary-600 hover:text-primary-700 flex items-center gap-1"
-                >
-                  <HelpCircle className="w-3.5 h-3.5" />
-                  <span>How is this calculated?</span>
-                </button>
-              </div>
+              {/* Formula Explainer Banner */}
+              {showFormulaTooltip && (
+                <div className="mt-4 p-3 bg-primary-50 dark:bg-primary-950/60 border border-primary-200 dark:border-primary-800 rounded-xl text-xs text-foreground space-y-1">
+                  <p className="font-semibold text-primary-900 dark:text-primary-200">
+                    Transparent Accuracy Metric:
+                  </p>
+                  <code className="block bg-card px-2 py-1 rounded text-[11px] font-mono border border-border">
+                    Accuracy (%) = (Correctly Completed Due Tasks ÷ Total Planned Tasks Due) × 100
+                  </code>
+                  <p className="text-[11px] text-muted-foreground pt-1">
+                    • Tasks not yet due are excluded from the denominator.
+                    • Cancelled sessions do not count against you.
+                    • Completed on-time ({accuracy.onTimeCompletedCount}) and completed late ({accuracy.lateCompletedCount}) are tracked independently.
+                  </p>
+                </div>
+              )}
             </div>
-
-            {/* Formula Explainer Banner */}
-            {showFormulaTooltip && (
-              <div className="mt-4 p-3 bg-primary-50 dark:bg-primary-950/60 border border-primary-200 dark:border-primary-800 rounded-xl text-xs text-foreground space-y-1">
-                <p className="font-semibold text-primary-900 dark:text-primary-200">
-                  Transparent Accuracy Metric:
-                </p>
-                <code className="block bg-card px-2 py-1 rounded text-[11px] font-mono border border-border">
-                  Accuracy (%) = (Correctly Completed Due Tasks ÷ Total Planned Tasks Due) × 100
-                </code>
-                <p className="text-[11px] text-muted-foreground pt-1">
-                  • Tasks not yet due are excluded from the denominator.
-                  • Cancelled sessions do not count against you.
-                  • Completed on-time ({accuracy.onTimeCompletedCount}) and completed late ({accuracy.lateCompletedCount}) are tracked independently.
-                </p>
-              </div>
-            )}
 
             {/* Breakdown Sub-metrics */}
             <div className="grid grid-cols-3 gap-2.5 mt-5 pt-4 border-t border-border text-center">
@@ -346,44 +364,59 @@ export const ProgressPage: React.FC = () => {
           </h2>
 
           <div className="space-y-3">
-            {subjectsProgress.map((subj) => (
-              <Card key={subj.subjectId} className="p-4 border-border space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <span
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: subj.color || '#4f46e5' }}
-                    />
-                    <h3 className="text-xs font-bold text-foreground">
-                      {subj.name} {subj.code && <span className="text-muted-foreground font-normal">({subj.code})</span>}
-                    </h3>
+            {subjectsProgress.length === 0 ? (
+              <Card className="p-8 text-center border-dashed border-border bg-card/50">
+                <BookOpen className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-40" />
+                <p className="text-xs font-semibold text-foreground">No subjects found</p>
+                <p className="text-[11px] text-muted-foreground mt-1 mb-3">
+                  Add subjects to track syllabus mastery and progress over time.
+                </p>
+                <Link to="/app/subjects">
+                  <Button size="sm" variant="outline">
+                    Add Subjects
+                  </Button>
+                </Link>
+              </Card>
+            ) : (
+              subjectsProgress.map((subj) => (
+                <Card key={subj.subjectId} className="p-4 border-border space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: subj.color || '#4f46e5' }}
+                      />
+                      <h3 className="text-xs font-bold text-foreground">
+                        {subj.name} {subj.code && <span className="text-muted-foreground font-normal">({subj.code})</span>}
+                      </h3>
+                    </div>
+
+                    <span className="text-xs font-bold text-foreground">
+                      {subj.completionPercent}%
+                    </span>
                   </div>
 
-                  <span className="text-xs font-bold text-foreground">
-                    {subj.completionPercent}%
-                  </span>
-                </div>
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-300"
+                      style={{
+                        width: `${subj.completionPercent}%`,
+                        backgroundColor: subj.color || '#4f46e5',
+                      }}
+                    />
+                  </div>
 
-                <div className="h-2 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-300"
-                    style={{
-                      width: `${subj.completionPercent}%`,
-                      backgroundColor: subj.color || '#4f46e5',
-                    }}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                  <span>
-                    {subj.completedTopics} of {subj.totalTopics} topics completed
-                  </span>
-                  <span>
-                    Actual Time: <strong className="text-foreground">{subj.actualHours}h</strong> / Planned: {subj.plannedHours}h
-                  </span>
-                </div>
-              </Card>
-            ))}
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                    <span>
+                      {subj.completedTopics} of {subj.totalTopics} topics completed
+                    </span>
+                    <span>
+                      Actual Time: <strong className="text-foreground">{subj.actualHours}h</strong> / Planned: {subj.plannedHours}h
+                    </span>
+                  </div>
+                </Card>
+              ))
+            )}
           </div>
         </div>
 
@@ -394,48 +427,66 @@ export const ProgressPage: React.FC = () => {
             Overall Topic Status
           </h2>
 
-          <Card className="p-6 border-border flex flex-col items-center justify-center">
-            <div className="h-56 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={statusPieData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={80}
-                    paddingAngle={4}
-                    dataKey="value"
-                  >
-                    {statusPieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'var(--card)',
-                      borderColor: 'var(--border)',
-                      borderRadius: '12px',
-                      fontSize: '12px',
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="flex items-center justify-center gap-4 mt-2 text-xs">
-              {statusPieData.map((item) => (
-                <div key={item.name} className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                  <span className="text-muted-foreground">
-                    {item.name}: <strong className="text-foreground">{item.value}</strong>
-                  </span>
+          <Card className="p-6 border-border flex flex-col items-center justify-center min-h-[280px]">
+            {summary && (summary.completedTopics + summary.inProgressTopics + summary.notStartedTopics > 0) ? (
+              <>
+                <div className="h-56 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={statusPieData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={80}
+                        paddingAngle={4}
+                        dataKey="value"
+                      >
+                        {statusPieData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'var(--card)',
+                          borderColor: 'var(--border)',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
                 </div>
-              ))}
-            </div>
+
+                <div className="flex items-center justify-center gap-4 mt-2 text-xs">
+                  {statusPieData.map((item) => (
+                    <div key={item.name} className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                      <span className="text-muted-foreground">
+                        {item.name}: <strong className="text-foreground">{item.value}</strong>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="py-8 text-center text-muted-foreground">
+                <CheckCircle2 className="w-8 h-8 mx-auto mb-2 opacity-40 text-muted-foreground" />
+                <p className="text-xs font-semibold text-foreground">No syllabus topics yet</p>
+                <p className="text-[11px] text-muted-foreground mt-1 mb-3">
+                  Create topics to visualize your syllabus status breakdown.
+                </p>
+                <Link to="/app/topics">
+                  <Button size="sm" variant="outline">
+                    Add Topics
+                  </Button>
+                </Link>
+              </div>
+            )}
           </Card>
         </div>
       </div>
     </div>
   );
 };
+

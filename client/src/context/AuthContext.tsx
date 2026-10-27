@@ -8,6 +8,7 @@ interface AuthContextType {
   dbStatus: DatabaseStatus | null;
   isDemoMode: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: (data: { email: string; name: string; credential?: string; picture?: string; googleId?: string }) => Promise<void>;
   register: (name: string, email: string, password: string, confirmPassword: string) => Promise<void>;
   loginAsDemo: () => Promise<void>;
   logout: () => Promise<void>;
@@ -67,6 +68,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await refreshDbStatus();
   };
 
+  const loginWithGoogle = async (googleData: {
+    email: string;
+    name: string;
+    credential?: string;
+    picture?: string;
+    googleId?: string;
+  }) => {
+    const res = await apiRequest<{ user: User; accessToken: string }>('/auth/google', {
+      method: 'POST',
+      body: JSON.stringify(googleData),
+    });
+    setApiToken(res.accessToken);
+    setUser(res.user);
+    await refreshDbStatus();
+  };
+
   const register = async (name: string, email: string, password: string, confirmPassword: string) => {
     const res = await apiRequest<{ user: User; accessToken: string }>('/auth/register', {
       method: 'POST',
@@ -105,6 +122,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         dbStatus,
         isDemoMode,
         login,
+        loginWithGoogle,
         register,
         loginAsDemo,
         logout,

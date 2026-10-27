@@ -81,6 +81,25 @@ describe('StudyOS Backend API Integration Tests', () => {
     expect(invalidRes.body.success).toBe(false);
   });
 
+  it('POST /api/v1/auth/google creates or logs in a Google user successfully', async () => {
+    const googleEmail = `google_student_${Date.now()}@gmail.com`;
+    const res = await request(app)
+      .post('/api/v1/auth/google')
+      .send({
+        email: googleEmail,
+        name: 'Google Scholar',
+        googleId: `google-sub-${Date.now()}`,
+        picture: 'https://lh3.googleusercontent.com/a/default-user',
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.user).toBeDefined();
+    expect(res.body.user.email).toBe(googleEmail);
+    expect(res.body.user.authProvider).toBe('google');
+    expect(res.body.accessToken).toBeDefined();
+  });
+
   it('Protected route rejects unauthenticated requests with 401', async () => {
     const res = await request(app).get('/api/v1/subjects');
     expect(res.status).toBe(401);

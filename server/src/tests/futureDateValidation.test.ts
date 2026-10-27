@@ -419,10 +419,16 @@ describe('StudyOS — Future-Date Validation and Past Event Prevention Suite', (
     expect(partsTokyo.dateString).toBeDefined();
     expect(partsUTC.dateString).toBeDefined();
 
-    // Past date-only check
-    const yesterdayUTC = format(subDays(new Date(), 1), 'yyyy-MM-dd');
-    const todayUTC = format(new Date(), 'yyyy-MM-dd');
-    const tomorrowUTC = format(addDays(new Date(), 1), 'yyyy-MM-dd');
+    // Past date-only check using true UTC calendar parts
+    const yesterdayDate = new Date();
+    yesterdayDate.setUTCDate(yesterdayDate.getUTCDate() - 1);
+    const yesterdayUTC = getDateInTimezone(yesterdayDate, 'UTC').dateString;
+
+    const todayUTC = partsUTC.dateString;
+
+    const tomorrowDate = new Date();
+    tomorrowDate.setUTCDate(tomorrowDate.getUTCDate() + 1);
+    const tomorrowUTC = getDateInTimezone(tomorrowDate, 'UTC').dateString;
 
     expect(isDateOnlyInPast(yesterdayUTC, 'UTC')).toBe(true);
     expect(isDateOnlyInPast(todayUTC, 'UTC')).toBe(false); // Today is accepted!
