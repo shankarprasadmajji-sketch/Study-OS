@@ -19,7 +19,8 @@ let databaseState: DatabaseState = {
 // Helper to auto-encode special characters in password and format target database
 export function normalizeMongoUri(rawUri: string): string {
   if (!rawUri) return '';
-  const trimmed = rawUri.trim();
+  // Strip whitespace and optional surrounding quotes
+  const trimmed = rawUri.trim().replace(/^["']|["']$/g, '');
   const match = trimmed.match(/^(mongodb(?:\+srv)?:\/\/)([^:]+):(.+)@([^@\/]+)(\/.*)?$/);
   if (match) {
     const [, protocol, username, rawPassword, host, rest = ''] = match;
@@ -51,15 +52,19 @@ let keepAliveTimer: NodeJS.Timeout | null = null;
 
 function startKeepAlive() {
   if (keepAliveTimer) clearInterval(keepAliveTimer);
+  // Ping every 20 seconds to keep MongoDB Atlas free-tier clusters warm and prevent idle socket drops
   keepAliveTimer = setInterval(async () => {
     try {
       if (mongoose.connection && mongoose.connection.readyState === 1 && mongoose.connection.db) {
-        await mongoose.connection.db.admin().ping();
+        await mongoose.connection.db.command({ ping: 1 });
       }
     } catch (err: any) {
-      console.warn('[Database] Keep-alive ping warning:', err.message || err);
+      console.warn('[Database] Keep-alive ping detected dropped connection:', err.message || err);
+      databaseState.isConnected = false;
+      databaseState.stateText = 'disconnected';
+      scheduleReconnect(1000);
     }
-  }, 45000); // 45 seconds to keep Atlas cluster warm and prevent idle timeouts
+  }, 20000);
 }
 
 function stopKeepAlive() {
@@ -70,14 +75,15 @@ function stopKeepAlive() {
 }
 
 export function scheduleReconnect(delayMs = 3000) {
-  if (reconnectTimer || isConnecting) return;
+  if (reconnectTimer) return;
   const uri = normalizeMongoUri(config.mongodbUri);
   if (!uri) return;
 
-  console.log(`[Database] MongoDB reconnection scheduled in ${Math.round(delayMs / 1000)} seconds...`);
+  console.log(`[Database] MongoDB auto-reconnect scheduled in ${Math.round(delayMs / 1000)} seconds...`);
   reconnectTimer = setTimeout(async () => {
     reconnectTimer = null;
-    if (mongoose.connection.readyState !== 1) {
+    const state = mongoose.connection?.readyState;
+    if (state !== 1 && state !== 2) {
       console.log('[Database] Executing auto-reconnect to MongoDB...');
       await connectDatabase();
     }
@@ -102,6 +108,20 @@ function attachConnectionListeners() {
     }
   });
 
+  mongoose.connection.on('reconnected', () => {
+    databaseState.isConnected = true;
+    databaseState.stateText = 'connected';
+    databaseState.host = mongoose.connection.host;
+    databaseState.databaseName = mongoose.connection.name;
+    databaseState.errorMessage = undefined;
+    console.log(`[Database] MongoDB driver reconnected successfully to database "${databaseState.databaseName}".`);
+    startKeepAlive();
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+  });
+
   mongoose.connection.on('open', () => {
     databaseState.isConnected = true;
     databaseState.stateText = 'connected';
@@ -114,7 +134,7 @@ function attachConnectionListeners() {
     databaseState.stateText = 'error';
     databaseState.errorMessage = err.message || 'MongoDB connection error';
     stopKeepAlive();
-    scheduleReconnect(5000);
+    scheduleReconnect(3000);
   });
 
   mongoose.connection.on('disconnected', () => {
@@ -122,7 +142,7 @@ function attachConnectionListeners() {
     databaseState.isConnected = false;
     databaseState.stateText = 'disconnected';
     stopKeepAlive();
-    scheduleReconnect(3000);
+    scheduleReconnect(2000);
   });
 
   mongoose.connection.on('close', () => {
@@ -130,7 +150,7 @@ function attachConnectionListeners() {
     databaseState.isConnected = false;
     databaseState.stateText = 'disconnected';
     stopKeepAlive();
-    scheduleReconnect(3000);
+    scheduleReconnect(2000);
   });
 }
 
@@ -151,18 +171,32 @@ export async function connectDatabase(): Promise<DatabaseState> {
 
   databaseState.isConfigured = true;
 
+  // If already connected, return immediate healthy state
   if (mongoose.connection && mongoose.connection.readyState === 1) {
     databaseState.isConnected = true;
     databaseState.stateText = 'connected';
     databaseState.host = mongoose.connection.host;
     databaseState.databaseName = mongoose.connection.name;
+    databaseState.errorMessage = undefined;
     startKeepAlive();
+    return databaseState;
+  }
+
+  // If currently in the process of connecting, wait or return connecting state
+  if (mongoose.connection && mongoose.connection.readyState === 2) {
+    databaseState.isConnected = false;
+    databaseState.stateText = 'connecting';
     return databaseState;
   }
 
   if (isConnecting) {
     databaseState.stateText = 'connecting';
     return databaseState;
+  }
+
+  // If disconnecting, wait briefly for clean close
+  if (mongoose.connection && mongoose.connection.readyState === 3) {
+    await new Promise((res) => setTimeout(res, 400));
   }
 
   isConnecting = true;
@@ -172,16 +206,23 @@ export async function connectDatabase(): Promise<DatabaseState> {
   try {
     console.log(`[Database] Attempting connection to MongoDB at: ${sanitizeMongoUri(uri)}`);
 
-    // Mongoose 8 recommended configuration
     mongoose.set('strictQuery', true);
 
+    // If connection was in a broken state, safely reset it before reconnecting
+    if (mongoose.connection && mongoose.connection.readyState !== 0) {
+      try {
+        await mongoose.disconnect();
+      } catch {
+        // Ignore disconnect errors during reset
+      }
+    }
+
     await mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 15000, // 15s to tolerate latency spikes
+      serverSelectionTimeoutMS: 15000,
       connectTimeoutMS: 20000,
-      socketTimeoutMS: 45000,
       heartbeatFrequencyMS: 10000,
       maxPoolSize: 10,
-      minPoolSize: 1, // Keep at least 1 socket alive to prevent Atlas idle drop
+      minPoolSize: 2, // Keep warm pool to avoid Atlas connection latency
       autoIndex: config.nodeEnv !== 'production',
     });
 
@@ -199,11 +240,31 @@ export async function connectDatabase(): Promise<DatabaseState> {
     databaseState.isConnected = false;
     databaseState.stateText = 'error';
     databaseState.errorMessage = error.message || 'Connection failed';
-    scheduleReconnect(5000);
+    scheduleReconnect(3000);
     return databaseState;
   } finally {
     isConnecting = false;
   }
+}
+
+export async function forceReconnectDatabase(): Promise<DatabaseState> {
+  console.log('[Database] Force reconnect triggered...');
+  stopKeepAlive();
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  isConnecting = false;
+
+  try {
+    if (mongoose.connection && mongoose.connection.readyState !== 0) {
+      await mongoose.disconnect();
+    }
+  } catch (err: any) {
+    console.warn('[Database] Cleanup before force reconnect warning:', err.message || err);
+  }
+
+  return await connectDatabase();
 }
 
 export function getDatabaseStatus(): DatabaseState {

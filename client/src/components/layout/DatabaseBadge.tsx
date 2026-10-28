@@ -5,7 +5,7 @@ import { Modal } from '../ui/Modal.js';
 import { Button } from '../ui/Button.js';
 
 export const DatabaseBadge: React.FC = () => {
-  const { dbStatus, refreshDbStatus } = useAuth();
+  const { dbStatus, refreshDbStatus, forceReconnect } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -40,6 +40,12 @@ export const DatabaseBadge: React.FC = () => {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     await refreshDbStatus();
+    setIsRefreshing(false);
+  };
+
+  const handleReconnect = async () => {
+    setIsRefreshing(true);
+    await forceReconnect();
     setIsRefreshing(false);
   };
 
@@ -122,6 +128,16 @@ export const DatabaseBadge: React.FC = () => {
               {dbStatus?.host && <span> · Host: <code className="font-mono">{dbStatus.host}</code></span>}
             </span>
             <div className="flex gap-2">
+              {isDisconnectedWithConfig && (
+                <Button
+                  size="sm"
+                  onClick={handleReconnect}
+                  isLoading={isRefreshing}
+                  leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
+                >
+                  Reconnect Now
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -131,7 +147,7 @@ export const DatabaseBadge: React.FC = () => {
               >
                 Re-check Connection
               </Button>
-              <Button size="sm" onClick={() => setIsModalOpen(false)}>
+              <Button size="sm" variant="ghost" onClick={() => setIsModalOpen(false)}>
                 Close
               </Button>
             </div>

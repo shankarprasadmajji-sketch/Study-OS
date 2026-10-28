@@ -129,3 +129,14 @@ export async function fetchHealth(): Promise<{
 }> {
   return apiRequest('/health');
 }
+
+// Request forced database reconnection
+export async function forceReconnectDatabase(): Promise<{
+  success: boolean;
+  database: DatabaseStatus;
+  message: string;
+}> {
+  return apiRequest('/health/reconnect', {
+    method: 'POST',
+  });
+}

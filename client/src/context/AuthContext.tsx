@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { User, DatabaseStatus } from '../types/index.js';
-import { apiRequest, setApiToken, getApiToken, fetchHealth } from '../api/client.js';
+import { apiRequest, setApiToken, getApiToken, fetchHealth, forceReconnectDatabase } from '../api/client.js';
 
 interface AuthContextType {
   user: User | null;
@@ -14,6 +14,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   updateUser: (updatedUser: Partial<User>) => void;
   refreshDbStatus: () => Promise<void>;
+  forceReconnect: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -22,41 +23,86 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [dbStatus, setDbStatus] = useState<DatabaseStatus | null>(null);
+  const isMountedRef = useRef(true);
 
-  const refreshDbStatus = async () => {
+  const refreshDbStatus = useCallback(async () => {
     try {
       const health = await fetchHealth();
-      setDbStatus(health.database);
+      if (isMountedRef.current) {
+        setDbStatus(health.database);
+      }
     } catch {
-      setDbStatus({
-        isConfigured: false,
-        isConnected: false,
-        state: 'error',
-        host: null,
-        databaseName: null,
-        errorMessage: 'Backend API unreachable',
-      });
+      if (isMountedRef.current) {
+        setDbStatus({
+          isConfigured: false,
+          isConnected: false,
+          state: 'error',
+          host: null,
+          databaseName: null,
+          errorMessage: 'Backend API unreachable',
+        });
+      }
     }
-  };
+  }, []);
+
+  const forceReconnect = useCallback(async (): Promise<boolean> => {
+    try {
+      const res = await forceReconnectDatabase();
+      if (isMountedRef.current) {
+        setDbStatus(res.database);
+      }
+      return res.database?.isConnected || false;
+    } catch {
+      await refreshDbStatus();
+      return false;
+    }
+  }, [refreshDbStatus]);
 
   useEffect(() => {
+    isMountedRef.current = true;
+
     const initAuth = async () => {
       await refreshDbStatus();
       const token = getApiToken();
       if (token) {
         try {
           const res = await apiRequest<{ user: User }>('/auth/me');
-          setUser(res.user);
+          if (isMountedRef.current) {
+            setUser(res.user);
+          }
         } catch {
           setApiToken(null);
-          setUser(null);
+          if (isMountedRef.current) {
+            setUser(null);
+          }
         }
       }
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     };
 
     initAuth();
-  }, []);
+
+    // Auto-recheck on tab focus or network reconnect
+    const handleFocus = () => refreshDbStatus();
+    const handleOnline = () => refreshDbStatus();
+
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('online', handleOnline);
+
+    // Heartbeat health check
+    const interval = setInterval(() => {
+      refreshDbStatus();
+    }, 15000);
+
+    return () => {
+      isMountedRef.current = false;
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('online', handleOnline);
+      clearInterval(interval);
+    };
+  }, [refreshDbStatus]);
 
   const login = async (email: string, password: string) => {
     const res = await apiRequest<{ user: User; accessToken: string }>('/auth/login', {
@@ -128,6 +174,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logout,
         updateUser,
         refreshDbStatus,
+        forceReconnect,
       }}
     >
       {children}

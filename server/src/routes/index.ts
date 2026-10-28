@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getDatabaseStatus, connectDatabase } from '../config/database.js';
+import { getDatabaseStatus, connectDatabase, forceReconnectDatabase } from '../config/database.js';
 import { dataStore } from '../services/dataStore.js';
 import authRoutes from './auth.js';
 import profileRoutes from './profile.js';
@@ -44,6 +44,32 @@ router.get('/health', async (_req, res) => {
       ? 'Connected to MongoDB database.'
       : 'Running in Demo/Preview mode. Supply MONGODB_URI in server/.env for persistent database storage.',
   });
+});
+
+// Force database reconnect endpoint
+router.post('/health/reconnect', async (_req, res) => {
+  try {
+    const dbStatus = await forceReconnectDatabase();
+    res.status(200).json({
+      success: dbStatus.isConnected,
+      database: {
+        isConfigured: dbStatus.isConfigured,
+        isConnected: dbStatus.isConnected,
+        state: dbStatus.stateText,
+        host: dbStatus.host || null,
+        databaseName: dbStatus.databaseName || null,
+        errorMessage: dbStatus.errorMessage || null,
+      },
+      message: dbStatus.isConnected
+        ? 'Successfully reconnected to MongoDB.'
+        : `Reconnection failed: ${dbStatus.errorMessage || 'Unable to connect to MongoDB cluster'}`,
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      success: false,
+      error: err.message || 'Failed to reconnect database',
+    });
+  }
 });
 
 // Register API v1 sub-routers
