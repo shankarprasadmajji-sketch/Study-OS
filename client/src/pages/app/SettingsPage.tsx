@@ -559,8 +559,8 @@ export const SettingsPage: React.FC = () => {
             onClick={() => setTheme('light')}
             className={`flex-1 p-4 rounded-xl border text-center transition-all ${
               theme === 'light'
-                ? 'border-primary-600 bg-primary-50/50 dark:bg-primary-950/20 text-primary-700 font-bold'
-                : 'border-border bg-card text-muted-foreground hover:bg-muted'
+                ? 'border-primary-600 bg-primary-50/80 dark:bg-primary-950/40 text-primary-900 dark:text-primary-300 font-bold ring-2 ring-primary-500/20'
+                : 'border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted'
             }`}
           >
             <Sun className="w-5 h-5 mx-auto mb-1 text-amber-500" />
@@ -571,8 +571,8 @@ export const SettingsPage: React.FC = () => {
             onClick={() => setTheme('dark')}
             className={`flex-1 p-4 rounded-xl border text-center transition-all ${
               theme === 'dark'
-                ? 'border-primary-600 bg-primary-50/50 dark:bg-primary-950/20 text-primary-700 font-bold'
-                : 'border-border bg-card text-muted-foreground hover:bg-muted'
+                ? 'border-primary-600 bg-primary-50/80 dark:bg-primary-950/40 text-primary-900 dark:text-primary-300 font-bold ring-2 ring-primary-500/20'
+                : 'border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted'
             }`}
           >
             <Moon className="w-5 h-5 mx-auto mb-1 text-indigo-400" />

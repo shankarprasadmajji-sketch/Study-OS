@@ -72,7 +72,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all duration-150 ${
                     isActive
-                      ? 'bg-primary-50 text-primary-700 font-semibold dark:bg-primary-950/50 dark:text-primary-300 shadow-sm'
+                      ? 'bg-primary-50 text-primary-900 font-bold dark:bg-primary-950/50 dark:text-primary-300 shadow-sm'
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                   }`
                 }
@@ -88,17 +88,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
 
       {/* Bottom User Card & Logout */}
       <div className="p-4 border-t border-border">
-        <div className="p-3 rounded-xl bg-muted/60 border border-border/50 mb-2">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-200 flex items-center justify-center font-bold text-xs uppercase shrink-0">
-              {user?.name?.charAt(0) || 'S'}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold text-foreground truncate">{user?.name}</p>
-              <p className="text-[11px] text-muted-foreground truncate">{user?.educationLevel || 'Student'}</p>
-            </div>
+        <Link
+          to="/app/profile"
+          onClick={onCloseMobile}
+          className="p-3 rounded-xl bg-muted/60 border border-border/50 mb-2 flex items-center gap-2.5 hover:bg-muted hover:border-primary-500/30 transition-all cursor-pointer block group"
+          title="View and edit profile"
+        >
+          <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-200 flex items-center justify-center font-bold text-xs uppercase shrink-0 group-hover:scale-105 transition-transform">
+            {user?.name?.trim()?.charAt(0)?.toUpperCase() || 'S'}
           </div>
-        </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold text-foreground truncate group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
+              {user?.name}
+            </p>
+            <p className="text-[11px] text-muted-foreground truncate">{user?.educationLevel || 'Student'}</p>
+          </div>
+        </Link>
 
         <button
           onClick={logout}

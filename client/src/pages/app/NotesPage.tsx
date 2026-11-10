@@ -391,14 +391,14 @@ export const NotesPage: React.FC = () => {
                     onClick={() => selectNote(note)}
                     className={`p-3.5 rounded-2xl border transition-all cursor-pointer relative ${
                       isSelected
-                        ? 'bg-indigo-950/70 border-indigo-500 shadow-md ring-1 ring-indigo-500/40'
+                        ? 'bg-primary-50 border-primary-500 shadow-md ring-1 ring-primary-500/40 dark:bg-indigo-950/70 dark:border-indigo-500 dark:ring-indigo-500/40'
                         : 'bg-card border-border hover:bg-muted/40 hover:border-indigo-400/40'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <h4
                         className={`text-xs font-bold line-clamp-1 flex-1 ${
-                          isSelected ? 'text-indigo-100' : 'text-foreground'
+                          isSelected ? 'text-primary-950 dark:text-indigo-100' : 'text-foreground'
                         }`}
                       >
                         {note.title || 'Untitled Note'}
@@ -418,7 +418,7 @@ export const NotesPage: React.FC = () => {
                     <p
                       className={`text-[11px] line-clamp-2 mt-1 leading-relaxed ${
                         isSelected
-                          ? 'text-indigo-200/90 font-medium'
+                          ? 'text-primary-800 dark:text-indigo-200/90 font-medium'
                           : 'text-slate-600 dark:text-slate-300'
                       }`}
                     >
@@ -669,7 +669,7 @@ export const NotesPage: React.FC = () => {
                         setHasUnsavedChanges(true);
                       }}
                       placeholder="Type your study notes, formulas, proofs, or questions..."
-                      className="w-full flex-1 min-h-[340px] p-4 bg-slate-900/80 border border-border rounded-xl text-sm sm:text-base text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 font-sans leading-relaxed resize-y"
+                      className="w-full flex-1 min-h-[340px] p-4 bg-card border border-border rounded-xl text-sm sm:text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary-500 font-sans leading-relaxed resize-y dark:bg-slate-900/80 dark:text-slate-100 dark:placeholder:text-slate-500"
                     />
                   </div>
 
@@ -683,7 +683,7 @@ export const NotesPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setViewMode('read')}
-                      className="text-primary-400 hover:text-primary-300 font-semibold flex items-center gap-1"
+                      className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-semibold flex items-center gap-1 transition-colors"
                     >
                       <Eye className="w-3.5 h-3.5" />
                       <span>Preview Formatted View</span>

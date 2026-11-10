@@ -348,10 +348,10 @@ export const StudyPlanPage: React.FC = () => {
                 <span
                   className={`text-sm font-extrabold mt-0.5 block capitalize ${
                     activePlan.feasibility?.status === 'feasible'
-                      ? 'text-emerald-500'
+                      ? 'text-emerald-700 dark:text-emerald-400'
                       : activePlan.feasibility?.status === 'tight'
-                      ? 'text-amber-500'
-                      : 'text-rose-500'
+                      ? 'text-amber-700 dark:text-amber-400'
+                      : 'text-rose-700 dark:text-rose-400'
                   }`}
                 >
                   {activePlan.feasibility?.status || 'Active'}

@@ -520,9 +520,9 @@ export const TimetablePage: React.FC = () => {
                           }}
                           className={`p-2 rounded-lg border text-[11px] cursor-pointer hover:shadow-subtle transition-all ${
                             s.status === 'completed'
-                              ? 'bg-emerald-50/50 border-emerald-200 line-through opacity-75'
+                              ? 'bg-emerald-50/80 border-emerald-300 text-emerald-900 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300 line-through opacity-85'
                               : s.status === 'missed'
-                              ? 'bg-rose-50/50 border-rose-200'
+                              ? 'bg-rose-50/80 border-rose-300 text-rose-900 dark:bg-rose-950/40 dark:border-rose-800 dark:text-rose-300'
                               : 'bg-card border-border hover:border-primary-400'
                           }`}
                         >

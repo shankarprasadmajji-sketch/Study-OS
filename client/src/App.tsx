@@ -18,6 +18,7 @@ import { StudyPlanPage } from './pages/app/StudyPlanPage.js';
 import { ProgressPage } from './pages/app/ProgressPage.js';
 import { FocusPage } from './pages/app/FocusPage.js';
 import { SettingsPage } from './pages/app/SettingsPage.js';
+import { ProfilePage } from './pages/app/ProfilePage.js';
 import { NotesPage } from './pages/app/NotesPage.js';
 import { HistoryPage } from './pages/app/HistoryPage.js';
 import { MusicPage } from './pages/app/MusicPage.js';
@@ -64,6 +65,7 @@ export const App: React.FC = () => {
         <Route path="history" element={<HistoryPage />} />
         <Route path="music" element={<MusicPage />} />
         <Route path="focus" element={<FocusPage />} />
+        <Route path="profile" element={<ProfilePage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
 

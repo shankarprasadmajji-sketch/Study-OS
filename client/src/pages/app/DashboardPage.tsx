@@ -518,7 +518,7 @@ export const DashboardPage: React.FC = () => {
                     </div>
                     <div className="flex items-center justify-between mt-1 text-[11px] text-muted-foreground">
                       <span className="truncate">{item.subjectName}</span>
-                      <span className={item.isOnTime ? 'text-emerald-600' : 'text-amber-600'}>
+                      <span className={item.isOnTime ? 'text-emerald-700 dark:text-emerald-400 font-medium' : 'text-amber-700 dark:text-amber-400 font-medium'}>
                         {item.isOnTime ? 'On Time' : 'Late'}
                       </span>
                     </div>
