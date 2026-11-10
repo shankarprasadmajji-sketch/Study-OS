@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   User,
   Clock,
-  Database,
   Moon,
   Sun,
   Bell,
@@ -23,7 +22,7 @@ import { Button } from '../../components/ui/Button.js';
 import { Badge } from '../../components/ui/Badge.js';
 
 export const SettingsPage: React.FC = () => {
-  const { user, updateUser, dbStatus, refreshDbStatus, logout } = useAuth();
+  const { user, updateUser, logout } = useAuth();
   const { theme, setTheme } = useTheme();
 
   const [savingProfile, setSavingProfile] = useState(false);
@@ -139,7 +138,7 @@ export const SettingsPage: React.FC = () => {
       <div>
         <h2 className="text-xl font-bold tracking-tight text-foreground">Settings & Preferences</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Manage your academic details, study availability slots, theme, and database settings
+          Manage your academic details, study availability slots, and theme preferences
         </p>
       </div>
 
@@ -382,47 +381,6 @@ export const SettingsPage: React.FC = () => {
             <Moon className="w-5 h-5 mx-auto mb-1 text-indigo-400" />
             <span className="text-xs">Dark Theme</span>
           </button>
-        </div>
-      </Card>
-
-      {/* Database Integration Architecture */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>Database Architecture</CardTitle>
-            <CardDescription>MongoDB and Mongoose backend connection status</CardDescription>
-          </div>
-          <Badge
-            variant={
-              dbStatus?.isConnected
-                ? 'success'
-                : dbStatus?.isConfigured
-                ? 'danger'
-                : 'warning'
-            }
-          >
-            {dbStatus?.isConnected
-              ? 'MongoDB Connected'
-              : dbStatus?.state === 'connecting'
-              ? 'MongoDB Connecting...'
-              : dbStatus?.isConfigured
-              ? 'MongoDB Disconnected'
-              : 'Demo Mode Active'}
-          </Badge>
-        </CardHeader>
-
-        <div className="p-4 rounded-xl bg-muted/60 border border-border text-xs space-y-2">
-          <p className="font-semibold text-foreground">
-            Connection State: <span className="font-mono">{dbStatus?.state || 'unconfigured'}</span>
-            {dbStatus?.host && <span> · Host: <span className="font-mono">{dbStatus.host}</span></span>}
-          </p>
-          <p className="text-muted-foreground leading-relaxed">
-            {dbStatus?.isConnected
-              ? `Connected to database "${dbStatus.databaseName}" on host "${dbStatus.host}". Mongoose ODM models are persisting all changes directly to MongoDB.`
-              : dbStatus?.isConfigured
-              ? `A MongoDB URI is configured in server/.env, but the server is not currently connected to the cluster. Error: ${dbStatus?.errorMessage || 'Connection unavailable'}. StudyOS backend is actively attempting automatic reconnection.`
-              : 'Notice: MONGODB_URI is not set in server/.env. StudyOS has safely booted in Demo Mode with an in-memory repository so you can test all features. Once you add MONGODB_URI, all database models connect automatically.'}
-          </p>
         </div>
       </Card>
 

@@ -22,7 +22,6 @@ import { Button } from '../../components/ui/Button.js';
 import { Card } from '../../components/ui/Card.js';
 import { Badge } from '../../components/ui/Badge.js';
 import { useAuth } from '../../context/AuthContext.js';
-import { DatabaseBadge } from '../../components/layout/DatabaseBadge.js';
 
 export const LandingPage: React.FC = () => {
   const { user, loginAsDemo } = useAuth();
@@ -57,8 +56,8 @@ export const LandingPage: React.FC = () => {
       a: 'Missing a study session is normal. In StudyOS, you simply mark the session as missed or click "Recover Missed Sessions". The engine recalculates your remaining workload, identifies open study windows before your exam, and presents a proposed reallocation for your confirmation.',
     },
     {
-      q: 'Does StudyOS require MongoDB to run?',
-      a: 'StudyOS has complete native MongoDB and Mongoose integration. For local testing and previews without a database URL, StudyOS runs smoothly in interactive Demo Mode. Once you add your MONGODB_URI to server/.env, all records persist directly into MongoDB.',
+      q: 'Can I customize my study session lengths and break intervals?',
+      a: 'Yes. You can customize your target study durations, break lengths, daily study targets, and weekly availability slots in Settings to match your personal academic routine.',
     },
     {
       q: 'Is StudyOS suitable for high school, college, and university courses?',
@@ -101,7 +100,6 @@ export const LandingPage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2.5">
-            <DatabaseBadge />
             {user ? (
               <Link to="/app/dashboard">
                 <Button size="sm" rightIcon={<ArrowRight className="w-3.5 h-3.5" />}>
@@ -172,7 +170,7 @@ export const LandingPage: React.FC = () => {
           </div>
 
           <div className="mt-4 text-xs text-muted-foreground">
-            <span>Free for students • No credit card required • MongoDB backed</span>
+            <span>Free for students • No credit card required • Cloud synced</span>
           </div>
 
           {/* Real Interactive UI Component Preview */}
@@ -496,7 +494,7 @@ export const LandingPage: React.FC = () => {
               onClick={handleDemoClick}
               isLoading={isDemoLoading}
             >
-              Explore Demo Mode
+              Explore Interactive Demo
             </Button>
           </div>
         </div>
@@ -516,7 +514,6 @@ export const LandingPage: React.FC = () => {
           <div className="flex items-center gap-6">
             <Link to="/login" className="hover:text-foreground">Log In</Link>
             <Link to="/signup" className="hover:text-foreground">Sign Up</Link>
-            <span>MongoDB ODM Native</span>
             <span>© {new Date().getFullYear()} StudyOS. All rights reserved.</span>
           </div>
         </div>

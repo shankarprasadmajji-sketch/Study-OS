@@ -254,7 +254,7 @@ export const HistoryPage: React.FC = () => {
       {/* History Items List */}
       {loading ? (
         <div className="p-12 text-center text-xs text-muted-foreground">
-          Loading completed task history from database...
+          Loading completed task history...
         </div>
       ) : history.length === 0 ? (
         <EmptyState

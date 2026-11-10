@@ -27,20 +27,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const refreshDbStatus = useCallback(async () => {
     try {
-      const health = await fetchHealth();
+      await fetchHealth();
       if (isMountedRef.current) {
-        setDbStatus(health.database);
+        setDbStatus(null);
       }
     } catch {
       if (isMountedRef.current) {
-        setDbStatus({
-          isConfigured: false,
-          isConnected: false,
-          state: 'error',
-          host: null,
-          databaseName: null,
-          errorMessage: 'Backend API unreachable',
-        });
+        setDbStatus(null);
       }
     }
   }, []);
@@ -48,15 +41,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const forceReconnect = useCallback(async (): Promise<boolean> => {
     try {
       const res = await forceReconnectDatabase();
-      if (isMountedRef.current) {
-        setDbStatus(res.database);
-      }
-      return res.database?.isConnected || false;
+      return res.success || false;
     } catch {
-      await refreshDbStatus();
       return false;
     }
-  }, [refreshDbStatus]);
+  }, []);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -158,7 +147,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser((prev) => (prev ? { ...prev, ...updatedFields } : null));
   };
 
-  const isDemoMode = !dbStatus?.isConnected;
+  const isDemoMode = false;
 
   return (
     <AuthContext.Provider

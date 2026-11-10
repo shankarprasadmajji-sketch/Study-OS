@@ -13,13 +13,31 @@ describe('StudyOS Backend API Integration Tests', () => {
     app = createApp();
   });
 
-  it('GET /api/v1/health returns healthy status and MongoDB configuration details', async () => {
+  it('GET /api/v1/health returns public healthy status without exposing database internals', async () => {
     const res = await request(app).get('/api/v1/health');
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('healthy');
-    expect(res.body.database).toBeDefined();
-    expect(res.body.database.isConnected).toBe(false); // Clean demo state before external URI is supplied
-    expect(res.body.mode).toBe('demo-preview');
+    expect(res.body.service).toBe('StudyOS API');
+    expect(res.body.database).toBeUndefined(); // Verifies DB internals are not leaked publicly
+    expect(res.body.mode).toBeUndefined();
+  });
+
+  it('GET /api/v1/admin/diagnostics protects developer diagnostics and requires authorization', async () => {
+    // Unauthorized request without key
+    const unauthorizedRes = await request(app).get('/api/v1/admin/diagnostics');
+    expect(unauthorizedRes.status).toBe(403);
+    expect(unauthorizedRes.body.success).toBe(false);
+
+    // Authorized request with x-diagnostic-key header
+    const authorizedRes = await request(app)
+      .get('/api/v1/admin/diagnostics')
+      .set('x-diagnostic-key', 'studyos_developer_diagnostic_secret_2026');
+    expect(authorizedRes.status).toBe(200);
+    expect(authorizedRes.body.success).toBe(true);
+    expect(authorizedRes.body.server).toBeDefined();
+    expect(authorizedRes.body.server.running).toBe(true);
+    expect(authorizedRes.body.database).toBeDefined();
+    expect(authorizedRes.body.database.isConfigured).toBeDefined();
   });
 
   it('POST /api/v1/auth/register creates a new user account with hashed password', async () => {

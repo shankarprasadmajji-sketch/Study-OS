@@ -26,6 +26,7 @@ export const config = {
   clientUrl: process.env.CLIENT_URL || 'http://localhost:5173',
   cookieSecure: process.env.COOKIE_SECURE === 'true',
   emailFrom: process.env.EMAIL_FROM || 'noreply@studyos.local',
+  diagnosticKey: process.env.DIAGNOSTIC_KEY || 'studyos_developer_diagnostic_secret_2026',
   smtp: {
     host: process.env.SMTP_HOST || '',
     port: parseInt(process.env.SMTP_PORT || '587', 10),

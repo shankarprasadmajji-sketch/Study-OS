@@ -186,7 +186,7 @@ export const NotesPage: React.FC = () => {
       setViewMode('read');
       setTimeout(() => setSaveStatus(null), 3500);
     } catch (err: any) {
-      alert(err.message || 'Failed to save note.');
+      alert(err.message || 'Unable to save your changes. Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -307,7 +307,7 @@ export const NotesPage: React.FC = () => {
             Student Notes & Notebooks
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Organize study summaries, derivations, formulas, and topic cheat sheets with live MongoDB sync.
+            Organize study summaries, derivations, formulas, and topic cheat sheets with live auto-save.
           </p>
         </div>
 
@@ -716,7 +716,7 @@ export const NotesPage: React.FC = () => {
       >
         <div className="space-y-4 text-xs">
           <p className="text-muted-foreground">
-            This action cannot be undone. This note will be permanently removed from MongoDB.
+            This action cannot be undone. This note will be permanently removed.
           </p>
 
           <div className="flex justify-end gap-2 pt-2 border-t border-border">

@@ -1,5 +1,4 @@
 import { Request, Response, NextFunction } from 'express';
-import { config } from '../config/env.js';
 
 export function errorHandler(
   err: any,
@@ -7,7 +6,8 @@ export function errorHandler(
   res: Response,
   _next: NextFunction
 ): void {
-  const statusCode = err.statusCode || (res.statusCode !== 200 ? res.statusCode : 500);
+  // Always log detailed technical error privately to server console
+  console.error('[Server Technical Log]:', err);
 
   // Mongoose duplicate key error (code 11000)
   if (err.code === 11000) {
@@ -30,7 +30,7 @@ export function errorHandler(
 
   // Mongoose ValidationError
   if (err.name === 'ValidationError') {
-    const messages = Object.values(err.errors).map((e: any) => e.message);
+    const messages = Object.values(err.errors || {}).map((e: any) => e.message);
     res.status(400).json({
       success: false,
       error: 'Data validation failed.',
@@ -39,13 +39,46 @@ export function errorHandler(
     return;
   }
 
-  if (config.nodeEnv !== 'production') {
-    console.error('[Error Details]:', err);
+  // Database connectivity / disconnection errors
+  const isDbConnectionError =
+    err.name === 'MongooseServerSelectionError' ||
+    err.name === 'MongoNetworkError' ||
+    err.name === 'MongoTimeoutError' ||
+    err.name === 'MongoServerSelectionError' ||
+    (err.name === 'MongooseError' && err.message?.includes('buffering timed out')) ||
+    (typeof err.message === 'string' &&
+      (err.message.includes('ECONNREFUSED') ||
+        err.message.includes('buffering timed out') ||
+        err.message.includes('Topology is closed') ||
+        err.message.includes('connection timed out') ||
+        err.message.includes('topology was destroyed') ||
+        err.message.includes('failed to connect to server')));
+
+  if (isDbConnectionError) {
+    res.status(503).json({
+      success: false,
+      error: 'Unable to save your changes. Please try again.',
+    });
+    return;
+  }
+
+  const statusCode = err.statusCode || (res.statusCode !== 200 ? res.statusCode : 500);
+
+  // Protect backend info: Never leak connection strings, hostnames, stack traces, or credentials
+  let publicMessage = err.message || 'An unexpected error occurred. Please try again.';
+
+  if (statusCode >= 500) {
+    if (
+      /mongodb|mongoose|cluster|atlas|srv|replica|credential|password|database|econnrefused/i.test(
+        publicMessage
+      )
+    ) {
+      publicMessage = 'Unable to save your changes. Please try again.';
+    }
   }
 
   res.status(statusCode).json({
     success: false,
-    error: err.message || 'An internal server error occurred.',
-    ...(config.nodeEnv !== 'production' && { stack: err.stack }),
+    error: publicMessage,
   });
 }

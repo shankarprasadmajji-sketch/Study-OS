@@ -58,6 +58,7 @@ describe('Deterministic Scheduling Engine Foundation', () => {
       availability: baseAvailability,
       startDate: new Date('2026-11-02T00:00:00Z'), // Monday
       endDate: new Date('2026-11-06T00:00:00Z'),
+      referenceDate: new Date('2026-11-02T00:00:00Z'),
       preferredSessionMinutes: 60,
       breakMinutes: 10,
     };
@@ -101,6 +102,7 @@ describe('Deterministic Scheduling Engine Foundation', () => {
       availability: baseAvailability,
       startDate: new Date('2026-11-02T00:00:00Z'),
       endDate: new Date('2026-11-06T00:00:00Z'),
+      referenceDate: new Date('2026-11-02T00:00:00Z'),
       preferredSessionMinutes: 50,
       breakMinutes: 10,
     };
@@ -221,6 +223,7 @@ describe('Deterministic Scheduling Engine Foundation', () => {
       availability: baseAvailability,
       startDate: new Date('2026-11-02T00:00:00Z'),
       endDate: new Date('2026-11-06T00:00:00Z'),
+      referenceDate: new Date('2026-11-02T00:00:00Z'),
       preferredSessionMinutes: 60,
       breakMinutes: 10,
     };

@@ -47,6 +47,7 @@ export function sanitizeMongoUri(uri: string): string {
 
 let isConnecting = false;
 let listenersAttached = false;
+let isIntentionalDisconnect = false;
 let reconnectTimer: NodeJS.Timeout | null = null;
 let keepAliveTimer: NodeJS.Timeout | null = null;
 
@@ -142,7 +143,9 @@ function attachConnectionListeners() {
     databaseState.isConnected = false;
     databaseState.stateText = 'disconnected';
     stopKeepAlive();
-    scheduleReconnect(2000);
+    if (!isIntentionalDisconnect) {
+      scheduleReconnect(2000);
+    }
   });
 
   mongoose.connection.on('close', () => {
@@ -150,11 +153,14 @@ function attachConnectionListeners() {
     databaseState.isConnected = false;
     databaseState.stateText = 'disconnected';
     stopKeepAlive();
-    scheduleReconnect(2000);
+    if (!isIntentionalDisconnect) {
+      scheduleReconnect(2000);
+    }
   });
 }
 
 export async function connectDatabase(): Promise<DatabaseState> {
+  isIntentionalDisconnect = false;
   const uri = normalizeMongoUri(config.mongodbUri);
 
   if (!uri) {
@@ -293,6 +299,7 @@ export function getDatabaseStatus(): DatabaseState {
 }
 
 export async function disconnectDatabase(): Promise<void> {
+  isIntentionalDisconnect = true;
   stopKeepAlive();
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);

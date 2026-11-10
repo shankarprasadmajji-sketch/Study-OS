@@ -94,7 +94,6 @@ export const authController = {
       message: 'Account created successfully.',
       user,
       accessToken,
-      isDemoMode: !dataStore.isUsingMongoDB(),
     });
   },
 
@@ -130,7 +129,6 @@ export const authController = {
       message: 'Login successful.',
       user: safeUser,
       accessToken,
-      isDemoMode: !dataStore.isUsingMongoDB(),
     });
   },
 
@@ -161,7 +159,6 @@ export const authController = {
     res.status(200).json({
       success: true,
       user: safeUser,
-      isDemoMode: !dataStore.isUsingMongoDB(),
     });
   },
 
@@ -202,10 +199,6 @@ export const authController = {
       success: true,
       message:
         'If an account with that email address exists, password reset instructions have been dispatched.',
-      isDemoMode: !dataStore.isUsingMongoDB(),
-      note: config.smtp.host
-        ? 'Password reset email sent to your inbox.'
-        : 'Note: SMTP server is not configured in .env. Reset token simulation ready.',
     });
   },
 
@@ -293,7 +286,6 @@ export const authController = {
       message: 'Google authentication successful.',
       user: safeUser,
       accessToken,
-      isDemoMode: !dataStore.isUsingMongoDB(),
     });
   },
 };

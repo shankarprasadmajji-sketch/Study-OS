@@ -7,7 +7,6 @@ import { GraduationCap, Mail, Lock, User as UserIcon, AlertCircle } from 'lucide
 import { useAuth } from '../../context/AuthContext.js';
 import { Button } from '../../components/ui/Button.js';
 import { Card } from '../../components/ui/Card.js';
-import { DatabaseBadge } from '../../components/layout/DatabaseBadge.js';
 import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton.js';
 
 const signupSchema = z
@@ -65,9 +64,6 @@ export const SignupPage: React.FC = () => {
         <p className="mt-1 text-xs text-muted-foreground">
           Set up your academic profile, syllabus, and study plan
         </p>
-        <div className="mt-2 flex justify-center">
-          <DatabaseBadge />
-        </div>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0">

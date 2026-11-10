@@ -492,7 +492,7 @@ export function generateStudyPlan(input: StudyPlanInput): StudyPlanResult {
         const subject = subjectMap.get(t.subjectId);
         if (subject?.examDate) {
           const examDate = typeof subject.examDate === 'string' ? parseISO(subject.examDate) : subject.examDate;
-          if (isAfter(new Date(), examDate)) {
+          if (isAfter(now, examDate)) {
             reason = `Examination date (${format(examDate, 'MMM d, yyyy')}) has already passed.`;
           } else {
             reason = `Insufficient study hours available before the exam date (${format(examDate, 'MMM d, yyyy')}).`;

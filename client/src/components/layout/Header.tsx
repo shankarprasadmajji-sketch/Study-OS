@@ -4,7 +4,6 @@ import { Menu, Sun, Moon, Sparkles, Bell } from 'lucide-react';
 import { format } from 'date-fns';
 import { useTheme } from '../../context/ThemeContext.js';
 import { useAuth } from '../../context/AuthContext.js';
-import { DatabaseBadge } from './DatabaseBadge.js';
 import { Button } from '../ui/Button.js';
 
 interface HeaderProps {
@@ -52,9 +51,6 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
       </div>
 
       <div className="flex items-center gap-3">
-        {/* Database Status indicator */}
-        <DatabaseBadge />
-
         {/* Generate Plan quick link */}
         <Link to="/app/study-plan" className="hidden md:inline-flex">
           <Button size="sm" variant="outline" leftIcon={<Sparkles className="w-3.5 h-3.5 text-primary-500" />}>

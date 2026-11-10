@@ -1,4 +1,3 @@
-import { DatabaseStatus } from '../types/index.js';
 
 function resolveApiBaseUrl(): string {
   const envUrl = (import.meta.env.VITE_API_URL || '').trim();
@@ -120,21 +119,20 @@ export async function apiRequest<T = any>(
   return data as T;
 }
 
-// Health & Database status check
+// System health check
 export async function fetchHealth(): Promise<{
   status: string;
-  database: DatabaseStatus;
-  mode: string;
-  note: string;
+  service?: string;
+  version?: string;
+  timestamp?: string;
 }> {
   return apiRequest('/health');
 }
 
-// Request forced database reconnection
+// Request database reconnection
 export async function forceReconnectDatabase(): Promise<{
   success: boolean;
-  database: DatabaseStatus;
-  message: string;
+  message?: string;
 }> {
   return apiRequest('/health/reconnect', {
     method: 'POST',

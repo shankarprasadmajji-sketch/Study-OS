@@ -15,7 +15,9 @@ async function bootstrap() {
 
   const server = app.listen(config.port, () => {
     console.log(`✅ StudyOS API Server running on: http://localhost:${config.port}`);
-    console.log(`🩺 Health check available at: http://localhost:${config.port}/api/v1/health`);
+    console.log(`🩺 Public Health Check: http://localhost:${config.port}/api/v1/health`);
+    console.log(`🔐 Private Developer Diagnostics: http://localhost:${config.port}/api/v1/admin/diagnostics`);
+    console.log(`🔑 Diagnostic Header: 'x-diagnostic-key: ${config.diagnosticKey}'`);
     console.log(`✨ Client allowed origin: ${config.clientUrl}`);
     console.log('----------------------------------------------------');
   });
