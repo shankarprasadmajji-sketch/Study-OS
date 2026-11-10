@@ -189,9 +189,9 @@ export const SubjectsPage: React.FC = () => {
       ) : filteredSubjects.length === 0 ? (
         <EmptyState
           icon={<BookOpen className="w-6 h-6" />}
-          title="No Subjects Found"
-          description={searchQuery ? 'No course matches your search filter.' : 'You have not added any subjects yet.'}
-          actionLabel="Add Course"
+          title={searchQuery ? 'No Subjects Found' : 'No subjects added yet'}
+          description={searchQuery ? 'No course matches your search filter.' : 'Add your first subject to get started.'}
+          actionLabel="Add Subject"
           onAction={openCreateModal}
         />
       ) : (
@@ -259,7 +259,11 @@ export const SubjectsPage: React.FC = () => {
                   <div className="flex justify-between text-[11px]">
                     <span className="text-muted-foreground">Syllabus Completion</span>
                     <span className="font-semibold text-foreground">
-                      {subj.completedTopics || 0}/{subj.totalTopics || 0} topics ({subj.completionPercent || 0}%)
+                      {(subj.totalTopics || 0) === 0 ? (
+                        <span className="text-muted-foreground font-normal italic">No topics added yet</span>
+                      ) : (
+                        `${subj.completedTopics || 0}/${subj.totalTopics || 0} topics (${subj.completionPercent || 0}%)`
+                      )}
                     </span>
                   </div>
                   <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">

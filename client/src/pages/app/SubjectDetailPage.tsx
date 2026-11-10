@@ -208,7 +208,7 @@ export const SubjectDetailPage: React.FC = () => {
                     )}
                   </>
                 ) : (
-                  'No exam set'
+                  'No exam date set'
                 )}
               </span>
               <p className="text-[11px] text-muted-foreground">Exam Date</p>
@@ -257,7 +257,7 @@ export const SubjectDetailPage: React.FC = () => {
         {topics.length === 0 ? (
           <EmptyState
             icon={<ListTodo className="w-6 h-6" />}
-            title="No Topics in this Course"
+            title="No topics added yet"
             description="Break down this subject into individual chapters or lecture modules to enable schedule generation."
             actionLabel="Add Topic"
             onAction={openCreateModal}

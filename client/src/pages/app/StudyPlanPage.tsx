@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Sparkles,
   Calendar,
@@ -12,6 +13,7 @@ import {
   FileCheck,
   ShieldCheck,
   Info,
+  BookOpen,
 } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { apiRequest } from '../../api/client.js';
@@ -23,9 +25,12 @@ import { Modal } from '../../components/ui/Modal.js';
 import { EmptyState } from '../../components/ui/EmptyState.js';
 
 export const StudyPlanPage: React.FC = () => {
+  const navigate = useNavigate();
   const [activePlan, setActivePlan] = useState<StudyPlan | null>(null);
   const [sessions, setSessions] = useState<StudySession[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userSubjectsCount, setUserSubjectsCount] = useState<number | null>(null);
+  const [userTopicsCount, setUserTopicsCount] = useState<number | null>(null);
 
   // Generate Plan Modal State
   const [generateModalOpen, setGenerateModalOpen] = useState(false);
@@ -55,17 +60,23 @@ export const StudyPlanPage: React.FC = () => {
   const fetchPlan = async () => {
     setLoading(true);
     try {
-      const res = await apiRequest<{ plan: StudyPlan | null; sessions?: StudySession[] }>('/study-plans');
+      const [res, allSess, subjRes, topRes] = await Promise.all([
+        apiRequest<{ plan: StudyPlan | null; sessions?: StudySession[] }>('/study-plans'),
+        apiRequest<{ sessions: StudySession[] }>('/study-sessions'),
+        apiRequest<{ subjects: any[] }>('/subjects'),
+        apiRequest<{ topics: any[] }>('/topics'),
+      ]);
       setActivePlan(res.plan);
       setSessions(res.sessions || []);
 
-      // Also fetch all sessions to detect any missed ones
-      const allSess = await apiRequest<{ sessions: StudySession[] }>('/study-sessions');
       const missed = (allSess.sessions || []).filter((s) => s.status === 'missed');
       setMissedSessions(missed);
       if (missed.length > 0 && !selectedMissedId) {
         setSelectedMissedId(missed[0]._id);
       }
+
+      setUserSubjectsCount(subjRes.subjects?.length || 0);
+      setUserTopicsCount(topRes.topics?.length || 0);
     } catch (err) {
       console.error('Failed to load study plan:', err);
     } finally {
@@ -215,16 +226,34 @@ export const StudyPlanPage: React.FC = () => {
       {loading ? (
         <div className="h-64 bg-muted rounded-2xl animate-pulse" />
       ) : !activePlan ? (
-        <EmptyState
-          icon={<Sparkles className="w-7 h-7" />}
-          title="No Active Study Plan Found"
-          description="Click below to let the scheduling engine analyze your syllabus topics, available hours, and exam dates to produce an optimal study plan."
-          actionLabel="Generate Practical Study Plan"
-          onAction={() => {
-            setPreviewData(null);
-            setGenerateModalOpen(true);
-          }}
-        />
+        userSubjectsCount === 0 ? (
+          <EmptyState
+            icon={<BookOpen className="w-7 h-7" />}
+            title="No subjects added yet"
+            description="You must add at least one subject and syllabus topics before generating an optimized study plan."
+            actionLabel="Add Subject"
+            onAction={() => navigate('/app/subjects')}
+          />
+        ) : userTopicsCount === 0 ? (
+          <EmptyState
+            icon={<ListTodo className="w-7 h-7" />}
+            title="No topics added yet"
+            description="You must add syllabus topics to your subjects before the scheduling engine can generate a study plan."
+            actionLabel="Add Syllabus Topics"
+            onAction={() => navigate('/app/topics')}
+          />
+        ) : (
+          <EmptyState
+            icon={<Sparkles className="w-7 h-7" />}
+            title="No Active Study Plan Found"
+            description="Click below to let the scheduling engine analyze your syllabus topics, available hours, and exam dates to produce an optimal study plan."
+            actionLabel="Generate Practical Study Plan"
+            onAction={() => {
+              setPreviewData(null);
+              setGenerateModalOpen(true);
+            }}
+          />
+        )
       ) : (
         <div className="space-y-6">
           {/* Main Plan Card */}
@@ -472,6 +501,46 @@ export const StudyPlanPage: React.FC = () => {
                 </div>
               )}
 
+              {userSubjectsCount === 0 && (
+                <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                  <div>
+                    <span className="font-semibold block">No subjects added yet</span>
+                    Please add at least one subject before generating a study plan.
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setGenerateModalOpen(false);
+                        navigate('/app/subjects');
+                      }}
+                      className="underline font-semibold block mt-1 hover:text-amber-900 dark:hover:text-amber-100"
+                    >
+                      Go to Subjects →
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {userSubjectsCount !== null && userSubjectsCount > 0 && userTopicsCount === 0 && (
+                <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                  <div>
+                    <span className="font-semibold block">No syllabus topics added yet</span>
+                    Please add syllabus topics to your subjects before generating a study plan.
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setGenerateModalOpen(false);
+                        navigate('/app/topics');
+                      }}
+                      className="underline font-semibold block mt-1 hover:text-amber-900 dark:hover:text-amber-100"
+                    >
+                      Add Syllabus Topics →
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block font-semibold text-foreground mb-1">Plan Name</label>
                 <input
@@ -560,7 +629,12 @@ export const StudyPlanPage: React.FC = () => {
                 <Button type="button" variant="ghost" size="sm" onClick={() => setGenerateModalOpen(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" size="sm" isLoading={isGenerating}>
+                <Button
+                  type="submit"
+                  size="sm"
+                  isLoading={isGenerating}
+                  disabled={userSubjectsCount === 0 || userTopicsCount === 0}
+                >
                   Preview Proposed Schedule
                 </Button>
               </div>

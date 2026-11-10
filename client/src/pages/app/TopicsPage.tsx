@@ -386,13 +386,31 @@ export const TopicsPage: React.FC = () => {
         <EmptyState
           icon={<ListTodo className="w-8 h-8" />}
           title={
-            activeTab === 'completed'
+            topics.length === 0
+              ? subjects.length === 0
+                ? 'No subjects added yet'
+                : 'No topics added yet'
+              : activeTab === 'completed'
               ? 'No topics completed yet'
-              : 'No pending topics found'
+              : 'No matching topics found'
           }
-          description="Add curriculum topics to build a complete academic study plan."
-          actionLabel="Add New Topic"
-          onAction={openCreateModal}
+          description={
+            topics.length === 0
+              ? subjects.length === 0
+                ? 'Add your first subject to get started before adding syllabus topics.'
+                : 'Add curriculum topics to build a complete academic study plan.'
+              : 'No topics match your current filters.'
+          }
+          actionLabel={
+            topics.length === 0 && subjects.length === 0
+              ? 'Add Subject'
+              : 'Add New Topic'
+          }
+          onAction={
+            topics.length === 0 && subjects.length === 0
+              ? () => navigate('/app/subjects')
+              : openCreateModal
+          }
         />
       ) : activeTab === 'completed' ? (
         /* Grouped Completed View */

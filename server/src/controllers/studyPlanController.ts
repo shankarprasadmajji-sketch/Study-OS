@@ -73,7 +73,22 @@ export const studyPlanController = {
     }
 
     const subjects = await dataStore.findSubjectsByUserId(userId);
+    if (subjects.length === 0) {
+      res.status(400).json({
+        success: false,
+        error: 'No subjects added yet. Please add at least one subject before generating a study plan.',
+      });
+      return;
+    }
+
     const topics = await dataStore.findTopicsByUserId(userId);
+    if (topics.length === 0) {
+      res.status(400).json({
+        success: false,
+        error: 'No topics added yet. Please add syllabus topics to your subjects before generating a study plan.',
+      });
+      return;
+    }
     const availability = await dataStore.findAvailabilityByUserId(userId);
     const existingSessions = await dataStore.findStudySessions(userId);
 
@@ -204,7 +219,22 @@ export const studyPlanController = {
 
     const allSessions = await dataStore.findStudySessions(userId, { planId });
     const subjects = await dataStore.findSubjectsByUserId(userId);
+    if (subjects.length === 0) {
+      res.status(400).json({
+        success: false,
+        error: 'No subjects added yet. Please add at least one subject before generating a study plan.',
+      });
+      return;
+    }
+
     const topics = await dataStore.findTopicsByUserId(userId);
+    if (topics.length === 0) {
+      res.status(400).json({
+        success: false,
+        error: 'No topics added yet. Please add syllabus topics to your subjects before generating a study plan.',
+      });
+      return;
+    }
     const availability = await dataStore.findAvailabilityByUserId(userId);
 
     const proposal = recoverMissedSession({

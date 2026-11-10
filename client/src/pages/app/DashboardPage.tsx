@@ -521,12 +521,17 @@ export const DashboardPage: React.FC = () => {
           </Card>
 
           {/* Upcoming Exams Countdown */}
-          {summary?.upcomingExams && summary.upcomingExams.length > 0 && (
-            <Card className="p-4 border-border">
-              <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5 uppercase tracking-wider mb-3">
+          <Card className="p-4 border-border">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5 uppercase tracking-wider">
                 <Calendar className="w-3.5 h-3.5 text-amber-500" />
                 Upcoming Examinations
               </h3>
+              <Link to="/app/subjects" className="text-[11px] text-primary-600 hover:underline">
+                Courses →
+              </Link>
+            </div>
+            {summary?.upcomingExams && summary.upcomingExams.length > 0 ? (
               <div className="space-y-2">
                 {summary.upcomingExams.slice(0, 3).map((exam) => (
                   <div
@@ -551,8 +556,12 @@ export const DashboardPage: React.FC = () => {
                   </div>
                 ))}
               </div>
-            </Card>
-          )}
+            ) : (
+              <p className="text-xs text-muted-foreground text-center py-4">
+                No exam date set.
+              </p>
+            )}
+          </Card>
         </div>
       </div>
 

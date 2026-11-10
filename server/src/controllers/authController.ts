@@ -69,11 +69,12 @@ export const authController = {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
+    const clientTimezone = (req.headers['x-timezone'] as string) || 'UTC';
     const user = await dataStore.createUser({
       name,
       email,
       passwordHash,
-      timezone: 'UTC',
+      timezone: clientTimezone,
       educationLevel: 'Undergraduate',
       academicYear: 'Year 1',
       onboardingCompleted: false,
@@ -249,7 +250,7 @@ export const authController = {
         googleId: googleId || `google-${Date.now()}`,
         avatar: picture || '',
         authProvider: 'google',
-        timezone: 'UTC',
+        timezone: (req.headers['x-timezone'] as string) || 'UTC',
         educationLevel: 'Undergraduate',
         academicYear: 'Year 1',
         onboardingCompleted: false,

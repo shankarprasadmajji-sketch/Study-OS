@@ -33,7 +33,7 @@ export const SettingsPage: React.FC = () => {
     name: user?.name || '',
     educationLevel: user?.educationLevel || 'Undergraduate',
     academicYear: user?.academicYear || 'Year 1',
-    timezone: user?.timezone || 'UTC',
+    timezone: user?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
     preferredSessionMinutes: user?.preferences?.preferredSessionMinutes || 50,
     breakMinutes: user?.preferences?.breakMinutes || 10,
     dailyTargetHours: user?.preferences?.dailyTargetHours || 4,
@@ -191,16 +191,6 @@ export const SettingsPage: React.FC = () => {
                 value={profileForm.academicYear}
                 placeholder="e.g. Year 2 (Sophomore)"
                 onChange={(e) => setProfileForm({ ...profileForm, academicYear: e.target.value })}
-                className="w-full px-3 py-2 rounded-xl border border-border bg-card text-foreground"
-              />
-            </div>
-
-            <div>
-              <label className="block font-semibold text-foreground mb-1">Timezone</label>
-              <input
-                type="text"
-                value={profileForm.timezone}
-                onChange={(e) => setProfileForm({ ...profileForm, timezone: e.target.value })}
                 className="w-full px-3 py-2 rounded-xl border border-border bg-card text-foreground"
               />
             </div>
