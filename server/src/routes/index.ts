@@ -13,6 +13,7 @@ import progressRoutes from './progress.js';
 import reminderRoutes from './reminders.js';
 import noteRoutes from './notes.js';
 import historyRoutes from './history.js';
+import aiRoutes from './ai.js';
 
 const router = Router();
 
@@ -184,5 +185,6 @@ router.use('/progress', progressRoutes);
 router.use('/reminders', reminderRoutes);
 router.use('/notes', noteRoutes);
 router.use('/history', historyRoutes);
+router.use('/ai', aiRoutes);
 
 export default router;

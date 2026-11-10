@@ -12,6 +12,9 @@ import { TopicProgressModel, ITopicProgress } from '../models/TopicProgress.js';
 import { ReminderModel, IReminder } from '../models/Reminder.js';
 import { RefreshTokenModel } from '../models/RefreshToken.js';
 import { NoteModel, INote } from '../models/Note.js';
+import { TopicLearningMaterialModel, ITopicLearningMaterial } from '../models/TopicLearningMaterial.js';
+import { QuizAttemptModel, IQuizAttempt } from '../models/QuizAttempt.js';
+import { LearningHistoryModel, ILearningHistory } from '../models/LearningHistory.js';
 
 // Realistic In-Memory Demo Store for when MongoDB URI is not yet configured
 class InMemoryStore {
@@ -25,6 +28,9 @@ class InMemoryStore {
   reminders: Map<string, any> = new Map();
   refreshTokens: Map<string, any> = new Map();
   notes: Map<string, any> = new Map();
+  topicLearningMaterials: Map<string, any> = new Map();
+  quizAttempts: Map<string, any> = new Map();
+  learningHistories: Map<string, any> = new Map();
 
   constructor() {
     this.seedDemoData();
@@ -1295,6 +1301,351 @@ export const dataStore = {
       timezone,
       motivatingMessage,
       recentDays,
+    };
+  },
+
+  // ==========================================
+  // AI Learning Assistant & Workspace Methods
+  // ==========================================
+
+  async findTopicLearningMaterial(userId: string, topicId: string): Promise<any | null> {
+    if (this.isUsingMongoDB()) {
+      return TopicLearningMaterialModel.findOne({ userId, topicId }).lean();
+    }
+    const key = `${userId}_${topicId}`;
+    return inMemoryStore.topicLearningMaterials.get(key) || null;
+  },
+
+  async upsertTopicLearningMaterial(
+    userId: string,
+    topicId: string,
+    subjectId: string,
+    data: any
+  ): Promise<any> {
+    if (this.isUsingMongoDB()) {
+      return TopicLearningMaterialModel.findOneAndUpdate(
+        { userId, topicId },
+        {
+          $set: {
+            ...data,
+            userId,
+            topicId,
+            subjectId,
+            updatedAt: new Date(),
+          },
+          $setOnInsert: {
+            createdAt: new Date(),
+          },
+        },
+        { upsert: true, new: true }
+      ).lean();
+    }
+
+    const key = `${userId}_${topicId}`;
+    const existing = inMemoryStore.topicLearningMaterials.get(key) || {
+      _id: new mongoose.Types.ObjectId().toHexString(),
+      userId,
+      topicId,
+      subjectId,
+      understandingLevel: 'intermediate',
+      aiNotes: { summary: '', detailedExplanation: '', keyPoints: [], definitions: [], formulas: [], practicalExamples: [] },
+      videos: [],
+      flashcards: [],
+      flowchart: { mermaidCode: '', steps: [] },
+      quiz: [],
+      revision: { quickSummary: '', coreConcepts: [], formulaCheatSheet: [], commonMistakes: [] },
+      isGeneratedByAI: false,
+      createdAt: new Date(),
+    };
+
+    const updated = {
+      ...existing,
+      ...data,
+      userId,
+      topicId,
+      subjectId,
+      updatedAt: new Date(),
+    };
+    inMemoryStore.topicLearningMaterials.set(key, updated);
+    return updated;
+  },
+
+  async updateTopicNotes(userId: string, topicId: string, notes: any): Promise<any | null> {
+    if (this.isUsingMongoDB()) {
+      return TopicLearningMaterialModel.findOneAndUpdate(
+        { userId, topicId },
+        {
+          $set: {
+            'aiNotes.summary': notes.summary,
+            'aiNotes.detailedExplanation': notes.detailedExplanation,
+            'aiNotes.keyPoints': notes.keyPoints || [],
+            'aiNotes.definitions': notes.definitions || [],
+            'aiNotes.formulas': notes.formulas || [],
+            'aiNotes.practicalExamples': notes.practicalExamples || [],
+            'aiNotes.savedAt': new Date(),
+          },
+        },
+        { new: true }
+      ).lean();
+    }
+
+    const key = `${userId}_${topicId}`;
+    const material = inMemoryStore.topicLearningMaterials.get(key);
+    if (!material) return null;
+    material.aiNotes = { ...material.aiNotes, ...notes, savedAt: new Date() };
+    material.updatedAt = new Date();
+    inMemoryStore.topicLearningMaterials.set(key, material);
+    return material;
+  },
+
+  async updateFlashcardStatus(
+    userId: string,
+    topicId: string,
+    flashcardId: string,
+    status: 'unreviewed' | 'know' | 'needs_revision'
+  ): Promise<any | null> {
+    if (this.isUsingMongoDB()) {
+      return TopicLearningMaterialModel.findOneAndUpdate(
+        { userId, topicId, 'flashcards.id': flashcardId },
+        {
+          $set: {
+            'flashcards.$.status': status,
+            'flashcards.$.lastReviewedAt': new Date(),
+          },
+          $inc: {
+            'flashcards.$.reviewCount': 1,
+          },
+        },
+        { new: true }
+      ).lean();
+    }
+
+    const key = `${userId}_${topicId}`;
+    const material = inMemoryStore.topicLearningMaterials.get(key);
+    if (!material || !material.flashcards) return null;
+    const fc = material.flashcards.find((f: any) => f.id === flashcardId);
+    if (fc) {
+      fc.status = status;
+      fc.lastReviewedAt = new Date();
+      fc.reviewCount = (fc.reviewCount || 0) + 1;
+      material.updatedAt = new Date();
+      inMemoryStore.topicLearningMaterials.set(key, material);
+    }
+    return material;
+  },
+
+  async toggleVideoWatched(
+    userId: string,
+    topicId: string,
+    videoUrl: string,
+    watched?: boolean
+  ): Promise<any | null> {
+    const isWatched = watched !== undefined ? watched : true;
+    const now = new Date();
+
+    if (this.isUsingMongoDB()) {
+      return TopicLearningMaterialModel.findOneAndUpdate(
+        { userId, topicId, 'videos.url': videoUrl },
+        {
+          $set: {
+            'videos.$.watched': isWatched,
+            'videos.$.watchedAt': isWatched ? now : null,
+          },
+        },
+        { new: true }
+      ).lean();
+    }
+
+    const key = `${userId}_${topicId}`;
+    const material = inMemoryStore.topicLearningMaterials.get(key);
+    if (!material || !material.videos) return null;
+    const vid = material.videos.find((v: any) => v.url === videoUrl);
+    if (vid) {
+      vid.watched = isWatched;
+      vid.watchedAt = isWatched ? now : null;
+      material.updatedAt = now;
+      inMemoryStore.topicLearningMaterials.set(key, material);
+    }
+    return material;
+  },
+
+  async addTopicVideo(userId: string, topicId: string, video: any): Promise<any | null> {
+    if (this.isUsingMongoDB()) {
+      return TopicLearningMaterialModel.findOneAndUpdate(
+        { userId, topicId },
+        { $push: { videos: video } },
+        { new: true }
+      ).lean();
+    }
+
+    const key = `${userId}_${topicId}`;
+    const material = inMemoryStore.topicLearningMaterials.get(key);
+    if (!material) return null;
+    if (!material.videos) material.videos = [];
+    material.videos.push(video);
+    material.updatedAt = new Date();
+    inMemoryStore.topicLearningMaterials.set(key, material);
+    return material;
+  },
+
+  async updateTopicUnderstanding(
+    userId: string,
+    topicId: string,
+    understandingLevel: 'beginner' | 'intermediate' | 'advanced'
+  ): Promise<any | null> {
+    if (this.isUsingMongoDB()) {
+      return TopicLearningMaterialModel.findOneAndUpdate(
+        { userId, topicId },
+        { $set: { understandingLevel } },
+        { new: true }
+      ).lean();
+    }
+
+    const key = `${userId}_${topicId}`;
+    const material = inMemoryStore.topicLearningMaterials.get(key);
+    if (material) {
+      material.understandingLevel = understandingLevel;
+      material.updatedAt = new Date();
+      inMemoryStore.topicLearningMaterials.set(key, material);
+    }
+    return material;
+  },
+
+  async createQuizAttempt(data: any): Promise<any> {
+    if (this.isUsingMongoDB()) {
+      const doc = new QuizAttemptModel(data);
+      await doc.save();
+      return doc.toJSON();
+    }
+
+    const id = new mongoose.Types.ObjectId().toHexString();
+    const item = { _id: id, ...data, completedAt: new Date(), createdAt: new Date() };
+    inMemoryStore.quizAttempts.set(id, item);
+    return item;
+  },
+
+  async findQuizAttemptsByTopic(userId: string, topicId: string): Promise<any[]> {
+    if (this.isUsingMongoDB()) {
+      return QuizAttemptModel.find({ userId, topicId }).sort({ completedAt: -1 }).lean();
+    }
+    return Array.from(inMemoryStore.quizAttempts.values())
+      .filter((q) => q.userId === userId && q.topicId === topicId)
+      .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
+  },
+
+  async findQuizAttemptsByUser(userId: string): Promise<any[]> {
+    if (this.isUsingMongoDB()) {
+      return QuizAttemptModel.find({ userId }).sort({ completedAt: -1 }).lean();
+    }
+    return Array.from(inMemoryStore.quizAttempts.values())
+      .filter((q) => q.userId === userId)
+      .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
+  },
+
+  async recordLearningActivity(data: any): Promise<any> {
+    if (this.isUsingMongoDB()) {
+      const doc = new LearningHistoryModel(data);
+      await doc.save();
+      return doc.toJSON();
+    }
+
+    const id = new mongoose.Types.ObjectId().toHexString();
+    const item = { _id: id, ...data, createdAt: new Date() };
+    inMemoryStore.learningHistories.set(id, item);
+    return item;
+  },
+
+  async getAIWorkspaceProgress(userId: string): Promise<any> {
+    const topics = await this.findTopicsByUserId(userId);
+    const subjects = await this.findSubjectsByUserId(userId);
+    const quizAttempts = await this.findQuizAttemptsByUser(userId);
+
+    let materialsList: any[] = [];
+    if (this.isUsingMongoDB()) {
+      materialsList = await TopicLearningMaterialModel.find({ userId }).lean();
+    } else {
+      materialsList = Array.from(inMemoryStore.topicLearningMaterials.values()).filter(
+        (m) => m.userId === userId
+      );
+    }
+
+    const completedTopics = topics.filter((t) => t.status === 'completed').length;
+    const inProgressTopics = topics.filter((t) => t.status === 'in_progress').length;
+    const notStartedTopics = topics.filter((t) => t.status === 'not_started').length;
+
+    let videosWatchedCount = 0;
+    let flashcardsTotal = 0;
+    let flashcardsMastered = 0;
+    let flashcardsNeedRevision = 0;
+    const weakConceptsSet = new Set<string>();
+
+    materialsList.forEach((m) => {
+      (m.videos || []).forEach((v: any) => {
+        if (v.watched) videosWatchedCount++;
+      });
+      (m.flashcards || []).forEach((f: any) => {
+        flashcardsTotal++;
+        if (f.status === 'know') flashcardsMastered++;
+        if (f.status === 'needs_revision') {
+          flashcardsNeedRevision++;
+          if (f.category) weakConceptsSet.add(f.category);
+        }
+      });
+    });
+
+    // Quiz metrics
+    let totalScore = 0;
+    let totalPossible = 0;
+    quizAttempts.forEach((qa) => {
+      totalScore += qa.score || 0;
+      totalPossible += qa.totalQuestions || 0;
+      (qa.weakConcepts || []).forEach((wc: string) => weakConceptsSet.add(wc));
+    });
+
+    const averageQuizAccuracy =
+      totalPossible > 0 ? Math.round((totalScore / totalPossible) * 100) : null;
+
+    // Topics requiring revision:
+    // Any topic where student marked understanding as 'beginner', or has flashcards needing revision, or low quiz score (< 70%)
+    const lowQuizTopicIds = new Set(
+      quizAttempts.filter((q) => q.accuracyPercent < 70).map((q) => q.topicId.toString())
+    );
+
+    const topicsRequiringRevision = topics.filter((t) => {
+      const mat = materialsList.find((m) => m.topicId.toString() === t._id.toString());
+      const hasWeakFlashcards = (mat?.flashcards || []).some((f: any) => f.status === 'needs_revision');
+      const isBeginner = mat?.understandingLevel === 'beginner';
+      const hasLowQuiz = lowQuizTopicIds.has(t._id.toString());
+      return hasWeakFlashcards || isBeginner || hasLowQuiz;
+    });
+
+    // Calculate total learning time across topics
+    const totalLearningMinutes = topics.reduce((acc, t) => acc + (t.actualMinutes || 0), 0);
+
+    return {
+      totalSubjects: subjects.length,
+      totalTopics: topics.length,
+      completedTopics,
+      inProgressTopics,
+      notStartedTopics,
+      videosWatchedCount,
+      flashcardsTotal,
+      flashcardsMastered,
+      flashcardsNeedRevision,
+      flashcardMasteryPercent:
+        flashcardsTotal > 0 ? Math.round((flashcardsMastered / flashcardsTotal) * 100) : 0,
+      totalQuizAttempts: quizAttempts.length,
+      averageQuizAccuracy,
+      weakConcepts: Array.from(weakConceptsSet).slice(0, 10),
+      topicsRequiringRevisionCount: topicsRequiringRevision.length,
+      topicsRequiringRevision: topicsRequiringRevision.map((t) => ({
+        id: t._id,
+        title: t.title,
+        subjectId: t.subjectId,
+        subjectName: (t as any).subjectName,
+      })),
+      totalLearningMinutes,
+      totalLearningHours: Number((totalLearningMinutes / 60).toFixed(1)),
     };
   },
 };

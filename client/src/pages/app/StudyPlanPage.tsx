@@ -14,33 +14,69 @@ import {
   ShieldCheck,
   Info,
   BookOpen,
+  Play,
+  Flame,
+  Award,
+  Video,
+  CreditCard,
+  HelpCircle,
+  GraduationCap,
+  ExternalLink,
+  Brain,
+  TrendingUp,
 } from 'lucide-react';
-import { format, addDays } from 'date-fns';
+import { format, addDays, isSameDay } from 'date-fns';
 import { apiRequest } from '../../api/client.js';
-import { StudyPlan, StudySession } from '../../types/index.js';
+import {
+  StudyPlan,
+  StudySession,
+  Topic,
+  Subject,
+  AIWorkspaceProgress,
+  AIStatusInfo,
+} from '../../types/index.js';
 import { Card, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card.js';
 import { Button } from '../../components/ui/Button.js';
 import { Badge } from '../../components/ui/Badge.js';
 import { Modal } from '../../components/ui/Modal.js';
 import { EmptyState } from '../../components/ui/EmptyState.js';
+import { TopicLearningWorkspace } from '../../components/studyPlan/TopicLearningWorkspace.js';
 
 export const StudyPlanPage: React.FC = () => {
   const navigate = useNavigate();
   const [activePlan, setActivePlan] = useState<StudyPlan | null>(null);
   const [sessions, setSessions] = useState<StudySession[]>([]);
+  const [topics, setTopics] = useState<Topic[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
   const [loading, setLoading] = useState(true);
   const [userSubjectsCount, setUserSubjectsCount] = useState<number | null>(null);
   const [userTopicsCount, setUserTopicsCount] = useState<number | null>(null);
+
+  // Active Learning Topic Workspace State (Modal)
+  const [activeLearningTopicId, setActiveLearningTopicId] = useState<string | null>(null);
+
+  // AI Assistant & Progress State
+  const [aiStatus, setAiStatus] = useState<AIStatusInfo>({
+    configured: false,
+    provider: null,
+    message: '',
+  });
+  const [learningProgress, setLearningProgress] = useState<AIWorkspaceProgress | null>(null);
 
   // Generate Plan Modal State
   const [generateModalOpen, setGenerateModalOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
+  const [useAIPlanner, setUseAIPlanner] = useState(true);
 
-  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  // AI Setup Modal
+  const [setupModalOpen, setSetupModalOpen] = useState(false);
+
+  const today = new Date();
+  const todayStr = format(today, 'yyyy-MM-dd');
 
   const [planFormData, setPlanFormData] = useState({
-    name: 'Spring Semester Exam Prep Plan',
+    name: 'Personalized Academic Semester Plan',
     startDate: format(new Date(), 'yyyy-MM-dd'),
     endDate: format(addDays(new Date(), 30), 'yyyy-MM-dd'),
     preferredSessionMinutes: 50,
@@ -60,14 +96,27 @@ export const StudyPlanPage: React.FC = () => {
   const fetchPlan = async () => {
     setLoading(true);
     try {
-      const [res, allSess, subjRes, topRes] = await Promise.all([
+      const [res, allSess, subjRes, topRes, statusRes, progRes] = await Promise.all([
         apiRequest<{ plan: StudyPlan | null; sessions?: StudySession[] }>('/study-plans'),
         apiRequest<{ sessions: StudySession[] }>('/study-sessions'),
-        apiRequest<{ subjects: any[] }>('/subjects'),
-        apiRequest<{ topics: any[] }>('/topics'),
+        apiRequest<{ subjects: Subject[] }>('/subjects'),
+        apiRequest<{ topics: Topic[] }>('/topics'),
+        apiRequest<AIStatusInfo>('/ai/status').catch(() => ({
+          configured: false,
+          provider: null,
+          message: 'AI Service status unavailable',
+        })),
+        apiRequest<{ progress: AIWorkspaceProgress }>('/ai/progress').catch(() => null),
       ]);
+
       setActivePlan(res.plan);
       setSessions(res.sessions || []);
+      setSubjects(subjRes.subjects || []);
+      setTopics(topRes.topics || []);
+      setAiStatus(statusRes);
+      if (progRes?.progress) {
+        setLearningProgress(progRes.progress);
+      }
 
       const missed = (allSess.sessions || []).filter((s) => s.status === 'missed');
       setMissedSessions(missed);
@@ -88,6 +137,15 @@ export const StudyPlanPage: React.FC = () => {
     fetchPlan();
   }, []);
 
+  // Filter Today's Sessions
+  const todaySessions = sessions.filter((s) => {
+    try {
+      return isSameDay(new Date(s.scheduledStart), today);
+    } catch {
+      return false;
+    }
+  });
+
   // Run preview before saving
   const handlePreviewPlan = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,16 +163,34 @@ export const StudyPlanPage: React.FC = () => {
 
     setIsGenerating(true);
     try {
-      const res = await apiRequest('/study-plans/generate', {
-        method: 'POST',
-        body: JSON.stringify({
-          ...planFormData,
-          savePlan: false,
-        }),
-      });
-      setPreviewData(res);
+      if (useAIPlanner && aiStatus.configured) {
+        const res = await apiRequest('/ai/plan/generate', {
+          method: 'POST',
+          body: JSON.stringify({
+            ...planFormData,
+            savePlan: false,
+          }),
+        });
+        setPreviewData(res);
+      } else {
+        // Deterministic algorithmic scheduler
+        const res = await apiRequest('/study-plans/generate', {
+          method: 'POST',
+          body: JSON.stringify({
+            ...planFormData,
+            savePlan: false,
+          }),
+        });
+        setPreviewData(res);
+      }
     } catch (err: any) {
-      setPlanError(err.message || 'Plan generation preview failed.');
+      if (err.details?.configured === false || err.message?.includes('AI_KEY_NOT_CONFIGURED')) {
+        setPlanError(
+          'AI Assistant requires an API key in server/.env. You can switch to the Deterministic Scheduler or configure GEMINI_API_KEY.'
+        );
+      } else {
+        setPlanError(err.message || 'Plan generation preview failed.');
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -124,13 +200,23 @@ export const StudyPlanPage: React.FC = () => {
   const handleSavePlan = async () => {
     setIsGenerating(true);
     try {
-      await apiRequest('/study-plans/generate', {
-        method: 'POST',
-        body: JSON.stringify({
-          ...planFormData,
-          savePlan: true,
-        }),
-      });
+      if (useAIPlanner && aiStatus.configured) {
+        await apiRequest('/ai/plan/generate', {
+          method: 'POST',
+          body: JSON.stringify({
+            ...planFormData,
+            savePlan: true,
+          }),
+        });
+      } else {
+        await apiRequest('/study-plans/generate', {
+          method: 'POST',
+          body: JSON.stringify({
+            ...planFormData,
+            savePlan: true,
+          }),
+        });
+      }
       setGenerateModalOpen(false);
       setPreviewData(null);
       fetchPlan();
@@ -184,45 +270,207 @@ export const StudyPlanPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight text-foreground">Study Plan Engine</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Deterministic scheduling algorithm, workload feasibility scoring, and missed-session recovery
-          </p>
-        </div>
+    <div className="space-y-8">
+      {/* ======================================================== */}
+      {/* 1. AI LEARNING ASSISTANT HEADER & INTELLIGENCE CENTER    */}
+      {/* ======================================================== */}
+      <Card className="p-6 bg-gradient-to-r from-primary-900/10 via-card to-card border border-primary-200/50 dark:border-primary-900/40">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <span className="p-2 rounded-xl bg-primary-100 text-primary-700 dark:bg-primary-950 dark:text-primary-300">
+                <Brain className="w-5 h-5" />
+              </span>
+              <h1 className="text-xl font-extrabold tracking-tight text-foreground">
+                AI Learning Assistant & Curriculum Planner
+              </h1>
+              <Badge
+                variant={aiStatus.configured ? 'success' : 'outline'}
+                className="flex items-center gap-1.5"
+              >
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    aiStatus.configured ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
+                  }`}
+                />
+                <span>
+                  {aiStatus.configured
+                    ? `AI Assistant Active (${aiStatus.provider === 'gemini' ? 'Gemini' : 'OpenAI'})`
+                    : 'AI Setup Guide Available'}
+                </span>
+              </Badge>
+            </div>
 
-        <div className="flex items-center gap-2">
-          {missedSessions.length > 0 && (
+            <p className="text-xs text-muted-foreground max-w-2xl leading-relaxed">
+              Deconstruct your actual subjects and syllabus topics into bite-sized learning units.
+              Generates pedagogical video recommendations, active recall flashcards, visual
+              flowcharts, and practice quizzes with dedicated AI Chat Tutor assistance.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {!aiStatus.configured && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSetupModalOpen(true)}
+                leftIcon={<Sparkles className="w-3.5 h-3.5 text-amber-500" />}
+              >
+                Configure AI Key
+              </Button>
+            )}
+
+            {missedSessions.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setRecoveryProposal(null);
+                  setRecoveryModalOpen(true);
+                }}
+                leftIcon={<RotateCcw className="w-3.5 h-3.5 text-amber-600" />}
+              >
+                Recover Missed ({missedSessions.length})
+              </Button>
+            )}
+
             <Button
-              variant="outline"
               size="sm"
               onClick={() => {
-                setRecoveryProposal(null);
-                setRecoveryModalOpen(true);
+                setPreviewData(null);
+                setGenerateModalOpen(true);
               }}
-              leftIcon={<RotateCcw className="w-3.5 h-3.5 text-amber-600" />}
+              leftIcon={<Sparkles className="w-3.5 h-3.5 text-amber-300" />}
+              className="bg-primary-600 hover:bg-primary-700 text-white font-bold shadow-sm"
             >
-              Recover Missed ({missedSessions.length})
+              Generate AI Study Plan
             </Button>
-          )}
-
-          <Button
-            size="sm"
-            onClick={() => {
-              setPreviewData(null);
-              setGenerateModalOpen(true);
-            }}
-            leftIcon={<Sparkles className="w-3.5 h-3.5" />}
-          >
-            Generate New Plan
-          </Button>
+          </div>
         </div>
+
+        {/* Quick Intelligence Summary Bar */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-border">
+          <div className="p-3 rounded-xl bg-card border border-border">
+            <span className="text-[10px] uppercase font-bold text-muted-foreground block">
+              Enrolled Subjects
+            </span>
+            <span className="text-sm font-extrabold text-foreground mt-0.5 block">
+              {subjects.length} Subjects
+            </span>
+          </div>
+
+          <div className="p-3 rounded-xl bg-card border border-border">
+            <span className="text-[10px] uppercase font-bold text-muted-foreground block">
+              Curriculum Topics
+            </span>
+            <span className="text-sm font-extrabold text-foreground mt-0.5 block">
+              {topics.length} Syllabus Topics
+            </span>
+          </div>
+
+          <div className="p-3 rounded-xl bg-card border border-border">
+            <span className="text-[10px] uppercase font-bold text-muted-foreground block">
+              Flashcards Mastered
+            </span>
+            <span className="text-sm font-extrabold text-foreground mt-0.5 block">
+              {learningProgress?.flashcardsMastered || 0} /{' '}
+              {learningProgress?.flashcardsTotal || 0} Cards
+            </span>
+          </div>
+
+          <div className="p-3 rounded-xl bg-card border border-border">
+            <span className="text-[10px] uppercase font-bold text-muted-foreground block">
+              Avg Quiz Accuracy
+            </span>
+            <span className="text-sm font-extrabold text-foreground mt-0.5 block">
+              {learningProgress?.averageQuizAccuracy !== null &&
+              learningProgress?.averageQuizAccuracy !== undefined
+                ? `${learningProgress.averageQuizAccuracy}%`
+                : 'No quizzes taken yet'}
+            </span>
+          </div>
+        </div>
+      </Card>
+
+      {/* ======================================================== */}
+      {/* 3. TODAY'S LEARNING SECTION                              */}
+      {/* ======================================================== */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-primary-600 dark:text-primary-400" />
+            <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">
+              Today's Learning Schedule
+            </h3>
+          </div>
+          <Badge size="sm" variant="outline">
+            {todaySessions.length} Session(s) Scheduled Today
+          </Badge>
+        </div>
+
+        {todaySessions.length === 0 ? (
+          <div className="p-6 rounded-2xl border border-dashed border-border bg-muted/20 text-center space-y-2">
+            <CheckCircle2 className="w-6 h-6 text-emerald-500 mx-auto" />
+            <p className="text-xs font-semibold text-foreground">
+              No study sessions scheduled for today!
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              You are all caught up, or you can select any topic below to launch a learning workspace.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {todaySessions.map((sess) => (
+              <Card
+                key={sess._id}
+                className="p-4 border border-border hover:border-primary-400 transition-all flex flex-col justify-between space-y-3"
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <Badge
+                      size="sm"
+                      style={{
+                        backgroundColor: `${sess.subjectColor || '#4f46e5'}20`,
+                        color: sess.subjectColor || '#4f46e5',
+                      }}
+                    >
+                      {sess.subjectName || 'Subject'}
+                    </Badge>
+                    <Badge size="sm" variant={sess.sessionType === 'revision' ? 'warning' : 'outline'}>
+                      {sess.sessionType === 'revision' ? 'Spaced Revision' : 'Deep Study'}
+                    </Badge>
+                  </div>
+
+                  <h4 className="font-bold text-foreground text-xs line-clamp-2">
+                    {sess.topicTitle || 'Study Session'}
+                  </h4>
+
+                  <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    <span>
+                      {format(new Date(sess.scheduledStart), 'h:mm a')} • {sess.plannedMinutes} mins
+                    </span>
+                  </p>
+                </div>
+
+                <Button
+                  size="sm"
+                  onClick={() => setActiveLearningTopicId(sess.topicId)}
+                  leftIcon={<Play className="w-3.5 h-3.5 text-primary-900 fill-primary-900" />}
+                  variant="white"
+                  className="w-full font-bold shadow-sm"
+                >
+                  Start Learning
+                </Button>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Active Plan Overview */}
+      {/* ======================================================== */}
+      {/* 2. MY STUDY PLAN (ACTIVE PLAN & TOPIC SESSIONS)          */}
+      {/* ======================================================== */}
       {loading ? (
         <div className="h-64 bg-muted rounded-2xl animate-pulse" />
       ) : !activePlan ? (
@@ -246,8 +494,8 @@ export const StudyPlanPage: React.FC = () => {
           <EmptyState
             icon={<Sparkles className="w-7 h-7" />}
             title="No Active Study Plan Found"
-            description="Click below to let the scheduling engine analyze your syllabus topics, available hours, and exam dates to produce an optimal study plan."
-            actionLabel="Generate Practical Study Plan"
+            description="Click below to let the AI Assistant analyze your syllabus topics, available hours, and exam dates to produce a realistic learning plan."
+            actionLabel="Generate AI Study Plan"
             onAction={() => {
               setPreviewData(null);
               setGenerateModalOpen(true);
@@ -256,7 +504,7 @@ export const StudyPlanPage: React.FC = () => {
         )
       ) : (
         <div className="space-y-6">
-          {/* Main Plan Card */}
+          {/* Main Active Plan Card */}
           <Card className="p-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
@@ -274,7 +522,7 @@ export const StudyPlanPage: React.FC = () => {
                     {activePlan.feasibility?.status?.toUpperCase() || 'ACTIVE'}
                   </Badge>
                   <span className="text-[11px] font-mono text-muted-foreground">
-                    Algorithm v{activePlan.algorithmVersion || '1.0.0'}
+                    Algorithm: {activePlan.algorithmVersion || 'AI-2.0'}
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
@@ -311,184 +559,254 @@ export const StudyPlanPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Quick Metrics Bar */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-5">
-              <div className="p-2.5 rounded-xl bg-muted/40 border border-border text-center">
-                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground block">
-                  Topics Scheduled
-                </span>
-                <span className="text-sm font-extrabold text-foreground mt-0.5 block">
-                  {activePlan.feasibility?.scheduledTopics ?? sessions.length} /{' '}
-                  {activePlan.feasibility?.totalTopics ?? sessions.length}
-                </span>
-              </div>
-              <div className="p-2.5 rounded-xl bg-muted/40 border border-border text-center">
-                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground block">
-                  Total Sessions
-                </span>
-                <span className="text-sm font-extrabold text-foreground mt-0.5 block">
-                  {sessions.length}
-                </span>
-              </div>
-              <div className="p-2.5 rounded-xl bg-muted/40 border border-border text-center">
-                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground block">
-                  Allocated Study
-                </span>
-                <span className="text-sm font-extrabold text-foreground mt-0.5 block">
-                  {(
-                    sessions.reduce((acc, s) => acc + (s.plannedMinutes || 0), 0) / 60
-                  ).toFixed(1)}{' '}
-                  hrs
-                </span>
-              </div>
-              <div className="p-2.5 rounded-xl bg-muted/40 border border-border text-center">
-                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground block">
-                  Feasibility
-                </span>
-                <span
-                  className={`text-sm font-extrabold mt-0.5 block capitalize ${
-                    activePlan.feasibility?.status === 'feasible'
-                      ? 'text-emerald-700 dark:text-emerald-400'
-                      : activePlan.feasibility?.status === 'tight'
-                      ? 'text-amber-700 dark:text-amber-400'
-                      : 'text-rose-700 dark:text-rose-400'
-                  }`}
-                >
-                  {activePlan.feasibility?.status || 'Active'}
-                </span>
-              </div>
-            </div>
-
-            {/* Explanations, Warnings & Unscheduled Topics */}
-            <div className="mt-6 pt-6 border-t border-border space-y-3">
-              {activePlan.feasibility?.warnings && activePlan.feasibility.warnings.length > 0 && (
-                <div className="p-3.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-900 text-xs flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
-                  <div className="space-y-1">
-                    {activePlan.feasibility.warnings.map((w, idx) => (
-                      <p key={idx}>{w}</p>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {activePlan.feasibility?.unscheduledTopics &&
-                activePlan.feasibility.unscheduledTopics.length > 0 && (
-                  <div className="p-3.5 rounded-xl bg-rose-50 text-rose-950 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-200 dark:border-rose-900 text-xs space-y-2">
-                    <div className="flex items-center gap-2 font-semibold text-rose-800 dark:text-rose-300">
-                      <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
-                      <span>
-                        Unscheduled Topics ({activePlan.feasibility.unscheduledTopics.length})
-                      </span>
-                    </div>
-                    <div className="space-y-1 pl-1">
-                      {activePlan.feasibility.unscheduledTopics.map((ut, idx) => (
-                        <div
-                          key={idx}
-                          className="flex flex-col sm:flex-row sm:items-center justify-between text-xs py-1 border-b border-rose-200/60 dark:border-rose-800/60 last:border-0"
-                        >
-                          <span className="font-semibold text-rose-900 dark:text-rose-100">
-                            {ut.title} {ut.subjectName ? `(${ut.subjectName})` : ''}
-                          </span>
-                          <span className="text-[11px] text-rose-700 dark:text-rose-300/90 italic">
-                            {ut.reason}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-              {activePlan.feasibility?.explanations && (
-                <div className="p-3.5 rounded-xl bg-card border border-border text-xs text-muted-foreground space-y-1">
-                  <div className="font-semibold text-foreground flex items-center gap-1.5 mb-1">
-                    <Info className="w-4 h-4 text-primary-600" />
-                    Algorithm Execution Summary
-                  </div>
-                  {activePlan.feasibility.explanations.map((exp, idx) => (
-                    <p key={idx}>• {exp}</p>
+            {/* Explanations & Warnings */}
+            {activePlan.feasibility?.warnings && activePlan.feasibility.warnings.length > 0 && (
+              <div className="mt-4 p-3.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-900 text-xs flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+                <div className="space-y-1">
+                  <span className="font-bold block">Capacity & Workload Warning:</span>
+                  {activePlan.feasibility.warnings.map((w, idx) => (
+                    <p key={idx}>{w}</p>
                   ))}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </Card>
 
-          {/* Scheduled Sessions List for this Plan */}
+          {/* Curriculum Learning Units & Sessions (Every Topic with Start Learning Button) */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle>Generated Sessions Schedule</CardTitle>
+                <CardTitle>My Study Plan — Scheduled Curriculum Topics</CardTitle>
                 <CardDescription>
-                  {sessions.length} study session(s) allocated for this plan
+                  Click "Start Learning" on any topic to launch the interactive workspace with video
+                  lectures, AI notes, flashcards, and practice quiz
                 </CardDescription>
               </div>
-              <Badge variant="outline">{sessions.length} Sessions Total</Badge>
+              <Badge variant="outline">{sessions.length} Scheduled Sessions</Badge>
             </CardHeader>
 
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {sessions.length === 0 ? (
                 <p className="text-center text-xs text-muted-foreground py-6">
                   No sessions have been scheduled yet for this plan.
                 </p>
               ) : (
-                sessions.slice(0, 15).map((sess) => (
+                sessions.map((sess) => (
                   <div
                     key={sess._id}
-                    className="p-3 rounded-xl border border-border bg-card flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-primary-400 transition-colors"
+                    className="p-3.5 rounded-xl border border-border bg-card flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-primary-400 transition-all"
                   >
                     <div className="flex items-center gap-3">
                       <div
-                        className="w-1.5 h-8 rounded-full shrink-0"
+                        className="w-2 h-10 rounded-full shrink-0"
                         style={{ backgroundColor: sess.subjectColor || '#4f46e5' }}
                       />
                       <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-semibold text-foreground">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-bold text-foreground">
                             {sess.topicTitle || (sess as any).title || 'Study Session'}
                           </span>
                           <Badge size="sm">
                             {sess.subjectName || (sess as any).subject?.name || 'General'}
                           </Badge>
+                          <Badge
+                            size="sm"
+                            variant={sess.sessionType === 'revision' ? 'warning' : 'outline'}
+                          >
+                            {sess.sessionType === 'revision' ? 'Revision' : 'Study'}
+                          </Badge>
+                          <Badge
+                            size="sm"
+                            variant={
+                              sess.status === 'completed'
+                                ? 'success'
+                                : sess.status === 'missed'
+                                ? 'danger'
+                                : 'outline'
+                            }
+                          >
+                            {sess.status}
+                          </Badge>
                         </div>
                         <p className="text-[11px] text-muted-foreground mt-0.5">
-                          {format(new Date(sess.scheduledStart), 'EEE, MMM d, yyyy • h:mm a')} (
+                          {format(new Date(sess.scheduledStart), 'EEE, MMM d • h:mm a')} (
                           {sess.plannedMinutes} mins)
                         </p>
                       </div>
                     </div>
 
-                    <Badge
-                      size="sm"
-                      variant={
-                        sess.status === 'completed'
-                          ? 'success'
-                          : sess.status === 'missed'
-                          ? 'danger'
-                          : 'outline'
-                      }
-                    >
-                      {sess.status}
-                    </Badge>
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      <Button
+                        size="sm"
+                        onClick={() => setActiveLearningTopicId(sess.topicId)}
+                        leftIcon={<Play className="w-3.5 h-3.5" />}
+                        className="font-semibold text-xs"
+                      >
+                        Start Learning
+                      </Button>
+                    </div>
                   </div>
                 ))
-              )}
-
-              {sessions.length > 15 && (
-                <p className="text-center text-xs text-muted-foreground py-2">
-                  Showing first 15 of {sessions.length} sessions. View full breakdown in Timetable.
-                </p>
               )}
             </div>
           </Card>
         </div>
       )}
 
-      {/* Generate Study Plan Wizard Modal */}
+      {/* ======================================================== */}
+      {/* 4. REVISION SCHEDULE SECTION                             */}
+      {/* ======================================================== */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <RotateCcw className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">
+              Spaced Revision Schedule & Weak Concepts
+            </h3>
+          </div>
+          <Badge size="sm" variant="outline">
+            {learningProgress?.topicsRequiringRevisionCount || 0} Topics Due for Revision
+          </Badge>
+        </div>
+
+        {(!learningProgress || learningProgress.topicsRequiringRevision.length === 0) ? (
+          <div className="p-6 rounded-2xl border border-dashed border-border bg-muted/20 text-center space-y-2">
+            <Award className="w-6 h-6 text-emerald-500 mx-auto" />
+            <p className="text-xs font-semibold text-foreground">
+              All concepts are currently in good standing!
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              Topics will appear here when you tag flashcards as "Need Revision" or score below 70%
+              on practice quizzes.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {learningProgress.topicsRequiringRevision.map((rev) => (
+              <Card
+                key={rev.id}
+                className="p-4 border border-amber-200 dark:border-amber-900/40 bg-card hover:border-amber-400 transition-all flex flex-col justify-between space-y-3"
+              >
+                <div>
+                  <Badge size="sm" variant="warning" className="mb-2">
+                    Needs Active Recall
+                  </Badge>
+                  <h4 className="font-bold text-foreground text-xs">{rev.title}</h4>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    {rev.subjectName || 'Subject Topic'}
+                  </p>
+                </div>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setActiveLearningTopicId(rev.id)}
+                  leftIcon={<RotateCcw className="w-3.5 h-3.5 text-amber-600" />}
+                  className="w-full text-xs"
+                >
+                  Start Revision
+                </Button>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ======================================================== */}
+      {/* 5. LEARNING PROGRESS SECTION                             */}
+      {/* ======================================================== */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <TrendingUp className="w-4 h-4 text-primary-600 dark:text-primary-400" />
+          <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">
+            Student Learning Progress & Mastery
+          </h3>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <Card className="p-4 text-center">
+            <span className="text-[10px] uppercase font-bold text-muted-foreground block">
+              Curriculum Completed
+            </span>
+            <span className="text-xl font-extrabold text-foreground mt-1 block">
+              {learningProgress?.completedTopics || 0} / {topics.length}
+            </span>
+            <span className="text-[10px] text-muted-foreground mt-0.5 block">
+              {topics.length > 0
+                ? `${Math.round(((learningProgress?.completedTopics || 0) / topics.length) * 100)}% complete`
+                : '0% complete'}
+            </span>
+          </Card>
+
+          <Card className="p-4 text-center">
+            <span className="text-[10px] uppercase font-bold text-muted-foreground block">
+              Videos Watched
+            </span>
+            <span className="text-xl font-extrabold text-foreground mt-1 block">
+              {learningProgress?.videosWatchedCount || 0} Lectures
+            </span>
+            <span className="text-[10px] text-muted-foreground mt-0.5 block">Verified YouTube</span>
+          </Card>
+
+          <Card className="p-4 text-center">
+            <span className="text-[10px] uppercase font-bold text-muted-foreground block">
+              Flashcard Mastery
+            </span>
+            <span className="text-xl font-extrabold text-foreground mt-1 block">
+              {learningProgress?.flashcardMasteryPercent || 0}%
+            </span>
+            <span className="text-[10px] text-muted-foreground mt-0.5 block">
+              {learningProgress?.flashcardsMastered || 0} cards retained
+            </span>
+          </Card>
+
+          <Card className="p-4 text-center">
+            <span className="text-[10px] uppercase font-bold text-muted-foreground block">
+              Total Learning Time
+            </span>
+            <span className="text-xl font-extrabold text-foreground mt-1 block">
+              {learningProgress?.totalLearningHours || 0} hrs
+            </span>
+            <span className="text-[10px] text-muted-foreground mt-0.5 block">Focus Time Logged</span>
+          </Card>
+        </div>
+
+        {/* Weak Concepts Identified */}
+        {learningProgress?.weakConcepts && learningProgress.weakConcepts.length > 0 && (
+          <div className="p-4 rounded-xl bg-muted/40 border border-border flex items-center gap-3 flex-wrap">
+            <span className="text-xs font-bold text-foreground">Identified Weak Concepts:</span>
+            {learningProgress.weakConcepts.map((wc, idx) => (
+              <Badge key={idx} variant="outline" size="sm" className="border-amber-300 text-amber-800 dark:text-amber-200">
+                {wc}
+              </Badge>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ======================================================== */}
+      {/* DEDICATED TOPIC LEARNING WORKSPACE MODAL                 */}
+      {/* ======================================================== */}
+      {activeLearningTopicId && (
+        <TopicLearningWorkspace
+          topicId={activeLearningTopicId}
+          onClose={() => {
+            setActiveLearningTopicId(null);
+            fetchPlan();
+          }}
+          onTopicStatusChanged={() => fetchPlan()}
+        />
+      )}
+
+      {/* ======================================================== */}
+      {/* GENERATE STUDY PLAN WIZARD MODAL                         */}
+      {/* ======================================================== */}
       <Modal
         isOpen={generateModalOpen}
         onClose={() => setGenerateModalOpen(false)}
-        title="Deterministic Study Plan Generator"
-        description="Configure planning horizon and inspect proposed allocations before committing"
+        title="Generate AI Academic Study Plan"
+        description="Analyzes syllabus topics, difficulty, understanding ratings, and availability"
         maxWidth="lg"
       >
         <div className="space-y-4 text-xs">
@@ -501,45 +819,39 @@ export const StudyPlanPage: React.FC = () => {
                 </div>
               )}
 
-              {userSubjectsCount === 0 && (
-                <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
-                  <div>
-                    <span className="font-semibold block">No subjects added yet</span>
-                    Please add at least one subject before generating a study plan.
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setGenerateModalOpen(false);
-                        navigate('/app/subjects');
-                      }}
-                      className="underline font-semibold block mt-1 hover:text-amber-900 dark:hover:text-amber-100"
-                    >
-                      Go to Subjects →
-                    </button>
-                  </div>
+              {/* Engine Switcher */}
+              <div className="p-3 rounded-xl bg-muted/60 border border-border flex items-center justify-between">
+                <div>
+                  <span className="font-bold text-foreground block">Planning Engine</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {useAIPlanner ? 'Gemini AI Intelligent Decomposer' : 'Deterministic Scheduling Engine'}
+                  </span>
                 </div>
-              )}
-
-              {userSubjectsCount !== null && userSubjectsCount > 0 && userTopicsCount === 0 && (
-                <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
-                  <div>
-                    <span className="font-semibold block">No syllabus topics added yet</span>
-                    Please add syllabus topics to your subjects before generating a study plan.
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setGenerateModalOpen(false);
-                        navigate('/app/topics');
-                      }}
-                      className="underline font-semibold block mt-1 hover:text-amber-900 dark:hover:text-amber-100"
-                    >
-                      Add Syllabus Topics →
-                    </button>
-                  </div>
+                <div className="flex items-center gap-1 bg-card p-1 rounded-lg border border-border">
+                  <button
+                    type="button"
+                    onClick={() => setUseAIPlanner(true)}
+                    className={`px-2.5 py-1 rounded text-xs font-semibold ${
+                      useAIPlanner
+                        ? 'bg-primary-600 text-white'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    AI Planner
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUseAIPlanner(false)}
+                    className={`px-2.5 py-1 rounded text-xs font-semibold ${
+                      !useAIPlanner
+                        ? 'bg-primary-600 text-white'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Deterministic
+                  </button>
                 </div>
-              )}
+              </div>
 
               <div>
                 <label className="block font-semibold text-foreground mb-1">Plan Name</label>
@@ -568,7 +880,9 @@ export const StudyPlanPage: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-foreground mb-1">End Date (Exam Horizon)</label>
+                  <label className="block font-semibold text-foreground mb-1">
+                    End Date (Exam Horizon)
+                  </label>
                   <input
                     type="date"
                     required
@@ -603,7 +917,9 @@ export const StudyPlanPage: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-foreground mb-1">Break Duration (mins)</label>
+                  <label className="block font-semibold text-foreground mb-1">
+                    Break Duration (mins)
+                  </label>
                   <input
                     type="number"
                     min="5"
@@ -617,16 +933,13 @@ export const StudyPlanPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="p-3 rounded-xl bg-muted/60 border border-border text-[11px] text-muted-foreground leading-relaxed">
-                The scheduling algorithm will prioritize your syllabus using:
-                <br />
-                <code className="text-primary-600 font-mono font-medium">
-                  Priority = 0.40 × Urgency + 0.25 × Difficulty + 0.20 × Importance + 0.15 × Revision
-                </code>
-              </div>
-
               <div className="flex justify-end gap-2 pt-2">
-                <Button type="button" variant="ghost" size="sm" onClick={() => setGenerateModalOpen(false)}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setGenerateModalOpen(false)}
+                >
                   Cancel
                 </Button>
                 <Button
@@ -654,26 +967,28 @@ export const StudyPlanPage: React.FC = () => {
                         : 'danger'
                     }
                   >
-                    {previewData.feasibility?.status?.toUpperCase()} (Score: {previewData.feasibility?.score}/100)
+                    {previewData.feasibility?.status?.toUpperCase()} (Score:{' '}
+                    {previewData.feasibility?.score}/100)
                   </Badge>
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center text-xs">
                   <div className="p-2 rounded bg-card border">
                     <p className="text-muted-foreground">Topics Scheduled</p>
                     <p className="font-bold text-foreground mt-0.5">
-                      {previewData.feasibility?.scheduledTopics} / {previewData.feasibility?.totalTopics}
+                      {previewData.feasibility?.scheduledTopics} /{' '}
+                      {previewData.feasibility?.totalTopics}
                     </p>
                   </div>
                   <div className="p-2 rounded bg-card border">
-                    <p className="text-muted-foreground">Study Hours</p>
-                    <p className="font-bold text-foreground mt-0.5">
-                      {(previewData.metrics?.scheduledMinutes / 60).toFixed(1)} hrs
+                    <p className="text-muted-foreground">Status</p>
+                    <p className="font-bold text-foreground mt-0.5 capitalize">
+                      {previewData.feasibility?.status}
                     </p>
                   </div>
                   <div className="p-2 rounded bg-card border">
-                    <p className="text-muted-foreground">Capacity Used</p>
+                    <p className="text-muted-foreground">Sessions</p>
                     <p className="font-bold text-foreground mt-0.5">
-                      {previewData.metrics?.utilizationPercent}%
+                      {previewData.proposedSessions?.length || 0}
                     </p>
                   </div>
                 </div>
@@ -686,14 +1001,18 @@ export const StudyPlanPage: React.FC = () => {
                 </span>
                 <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
                   {previewData.proposedSessions?.slice(0, 8).map((sess: any, i: number) => (
-                    <div key={i} className="p-2 rounded-lg border border-border bg-card flex justify-between">
+                    <div
+                      key={i}
+                      className="p-2.5 rounded-lg border border-border bg-card flex justify-between items-center"
+                    >
                       <div>
                         <span className="font-semibold text-foreground">{sess.title}</span>
                         <span className="text-muted-foreground block text-[10px]">
-                          {format(new Date(sess.scheduledStart), 'MMM d, h:mm a')} • {sess.plannedMinutes} mins
+                          {format(new Date(sess.scheduledStart), 'MMM d, h:mm a')} •{' '}
+                          {sess.plannedMinutes} mins
                         </span>
                       </div>
-                      <Badge size="sm">{sess.subjectName}</Badge>
+                      <Badge size="sm">{sess.subjectName || 'Study'}</Badge>
                     </div>
                   ))}
                 </div>
@@ -709,6 +1028,42 @@ export const StudyPlanPage: React.FC = () => {
               </div>
             </div>
           )}
+        </div>
+      </Modal>
+
+      {/* AI Key Setup Modal */}
+      <Modal
+        isOpen={setupModalOpen}
+        onClose={() => setSetupModalOpen(false)}
+        title="AI Assistant Setup"
+        description="Enable Google Gemini or OpenAI Live Assistant"
+      >
+        <div className="space-y-4 text-xs">
+          <p className="text-muted-foreground leading-relaxed">
+            StudyOS connects directly to Google Gemini through the backend server.
+          </p>
+
+          <div className="p-3.5 rounded-xl bg-card border border-border space-y-2">
+            <span className="font-bold text-foreground block">Configuration Steps:</span>
+            <ol className="list-decimal pl-5 space-y-1.5 text-muted-foreground">
+              <li>
+                Open <code className="text-primary-600 font-mono">server/.env</code> in your editor.
+              </li>
+              <li>
+                Add your Gemini API key:
+                <code className="text-primary-600 font-mono block mt-1 p-2 bg-muted rounded">
+                  GEMINI_API_KEY=AIzaSy...
+                </code>
+              </li>
+              <li>Restart the server. All AI notes, flashcards, quizzes, and chat tutor will activate!</li>
+            </ol>
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <Button size="sm" onClick={() => setSetupModalOpen(false)}>
+              Got It
+            </Button>
+          </div>
         </div>
       </Modal>
 
@@ -804,3 +1159,5 @@ export const StudyPlanPage: React.FC = () => {
     </div>
   );
 };
+
+export default StudyPlanPage;

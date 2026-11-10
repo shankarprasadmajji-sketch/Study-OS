@@ -152,3 +152,137 @@ export interface ProgressSummary {
     status: 'past' | 'today' | 'upcoming';
   }>;
 }
+
+export type UnderstandingLevel = 'beginner' | 'intermediate' | 'advanced';
+export type FlashcardStatus = 'unreviewed' | 'know' | 'needs_revision';
+
+export interface VideoResource {
+  videoId?: string;
+  title: string;
+  channel: string;
+  url: string;
+  embedUrl?: string;
+  duration?: string;
+  watched: boolean;
+  watchedAt?: string | null;
+}
+
+export interface Flashcard {
+  id: string;
+  question: string;
+  answer: string;
+  category?: string;
+  status: FlashcardStatus;
+  lastReviewedAt?: string | null;
+  reviewCount: number;
+}
+
+export interface FlowchartStep {
+  stepNumber: number;
+  title: string;
+  description: string;
+  keyInsight?: string;
+}
+
+export interface TopicFlowchart {
+  mermaidCode: string;
+  steps: FlowchartStep[];
+}
+
+export interface QuizQuestion {
+  id: string;
+  question: string;
+  options: string[];
+  correctAnswerIndex: number;
+  explanation: string;
+  conceptTested: string;
+}
+
+export interface AiNotes {
+  summary: string;
+  detailedExplanation: string;
+  keyPoints: string[];
+  definitions: Array<{ term: string; definition: string }>;
+  formulas: string[];
+  practicalExamples: string[];
+  savedAt?: string | null;
+}
+
+export interface RevisionSection {
+  quickSummary: string;
+  coreConcepts: string[];
+  formulaCheatSheet: string[];
+  commonMistakes: string[];
+  nextRevisionDate?: string | null;
+}
+
+export interface TopicLearningMaterial {
+  _id?: string;
+  userId: string;
+  topicId: string;
+  subjectId: string;
+  understandingLevel: UnderstandingLevel;
+  aiNotes: AiNotes;
+  videos: VideoResource[];
+  flashcards: Flashcard[];
+  flowchart: TopicFlowchart;
+  quiz: QuizQuestion[];
+  revision: RevisionSection;
+  isGeneratedByAI: boolean;
+  lastGeneratedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface QuizAttemptAnswer {
+  questionId: string;
+  selectedIndex: number;
+  isCorrect: boolean;
+  conceptTested?: string;
+}
+
+export interface QuizAttempt {
+  _id: string;
+  userId: string;
+  topicId: string;
+  subjectId: string;
+  score: number;
+  totalQuestions: number;
+  accuracyPercent: number;
+  answers: QuizAttemptAnswer[];
+  weakConcepts: string[];
+  timeSpentSeconds: number;
+  completedAt: string;
+}
+
+export interface AIWorkspaceProgress {
+  totalSubjects: number;
+  totalTopics: number;
+  completedTopics: number;
+  inProgressTopics: number;
+  notStartedTopics: number;
+  videosWatchedCount: number;
+  flashcardsTotal: number;
+  flashcardsMastered: number;
+  flashcardsNeedRevision: number;
+  flashcardMasteryPercent: number;
+  totalQuizAttempts: number;
+  averageQuizAccuracy: number | null;
+  weakConcepts: string[];
+  topicsRequiringRevisionCount: number;
+  topicsRequiringRevision: Array<{
+    id: string;
+    title: string;
+    subjectId: string;
+    subjectName?: string;
+  }>;
+  totalLearningMinutes: number;
+  totalLearningHours: number;
+}
+
+export interface AIStatusInfo {
+  configured: boolean;
+  provider: 'gemini' | 'openai' | null;
+  message: string;
+}
+
