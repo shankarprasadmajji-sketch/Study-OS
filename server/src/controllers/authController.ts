@@ -8,9 +8,16 @@ import { AuthenticatedRequest } from '../middleware/auth.js';
 
 export const registerSchema = z
   .object({
-    name: z.string().min(2, 'Name must be at least 2 characters').max(80),
+    name: z
+      .string()
+      .trim()
+      .min(3, 'Username must be at least 3 characters')
+      .max(50, 'Username cannot exceed 50 characters'),
     email: z.string().email('Please enter a valid email address'),
-    password: z.string().min(6, 'Password must be at least 6 characters'),
+    password: z
+      .string()
+      .min(8, 'Password must be at least 8 characters')
+      .max(20, 'Password cannot exceed 20 characters'),
     confirmPassword: z.string(),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -20,8 +27,25 @@ export const registerSchema = z
 
 export const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(1, 'Password is required'),
+  password: z
+    .string()
+    .min(1, 'Password is required')
+    .max(20, 'Password cannot exceed 20 characters'),
 });
+
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, 'Current password is required'),
+    newPassword: z
+      .string()
+      .min(8, 'New password must be at least 8 characters')
+      .max(20, 'New password cannot exceed 20 characters'),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: 'New passwords do not match',
+    path: ['confirmPassword'],
+  });
 
 export const googleAuthSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -57,6 +81,27 @@ export const authController = {
   async register(req: Request, res: Response): Promise<void> {
     const { name, email, password } = req.body;
 
+    const trimmedName = typeof name === 'string' ? name.trim() : '';
+    if (trimmedName.length < 3 || trimmedName.length > 50) {
+      res.status(400).json({
+        success: false,
+        error: trimmedName.length < 3
+          ? 'Username must be at least 3 characters'
+          : 'Username cannot exceed 50 characters',
+      });
+      return;
+    }
+
+    if (typeof password !== 'string' || password.length < 8 || password.length > 20) {
+      res.status(400).json({
+        success: false,
+        error: !password || password.length < 8
+          ? 'Password must be at least 8 characters'
+          : 'Password cannot exceed 20 characters',
+      });
+      return;
+    }
+
     const existingUser = await dataStore.findUserByEmail(email);
     if (existingUser) {
       res.status(409).json({
@@ -71,7 +116,7 @@ export const authController = {
 
     const clientTimezone = (req.headers['x-timezone'] as string) || 'UTC';
     const user = await dataStore.createUser({
-      name,
+      name: trimmedName,
       email,
       passwordHash,
       timezone: clientTimezone,
@@ -205,17 +250,56 @@ export const authController = {
 
   async resetPassword(req: Request, res: Response): Promise<void> {
     const { token, newPassword } = req.body;
-    if (!token || !newPassword || newPassword.length < 6) {
+    if (!token || !newPassword || newPassword.length < 8 || newPassword.length > 20) {
       res.status(400).json({
         success: false,
-        error: 'Valid reset token and new password (min 6 characters) are required.',
+        error: 'Valid reset token and new password (8-20 characters) are required.',
       });
       return;
     }
 
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(newPassword, salt);
+
     res.status(200).json({
       success: true,
       message: 'Password has been successfully updated. You may now log in.',
+    });
+  },
+
+  async changePassword(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const userId = req.user!.userId;
+    const { currentPassword, newPassword } = req.body;
+
+    if (!newPassword || newPassword.length < 8 || newPassword.length > 20) {
+      res.status(400).json({
+        success: false,
+        error: 'New password must be between 8 and 20 characters',
+      });
+      return;
+    }
+
+    const user = await dataStore.findUserById(userId);
+    if (!user) {
+      res.status(404).json({ success: false, error: 'User not found.' });
+      return;
+    }
+
+    if (user.passwordHash) {
+      const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+      if (!isMatch) {
+        res.status(400).json({ success: false, error: 'Current password does not match.' });
+        return;
+      }
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const newHash = await bcrypt.hash(newPassword, salt);
+    await dataStore.updateUser(userId, { passwordHash: newHash });
+
+    res.status(200).json({
+      success: true,
+      message: 'Password updated successfully.',
     });
   },
 

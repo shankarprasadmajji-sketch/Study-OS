@@ -11,9 +11,16 @@ import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton.js'
 
 const signupSchema = z
   .object({
-    name: z.string().min(2, 'Name must be at least 2 characters').max(80),
+    name: z
+      .string()
+      .trim()
+      .min(3, 'Username must be at least 3 characters')
+      .max(50, 'Username cannot exceed 50 characters'),
     email: z.string().email('Please enter a valid email address'),
-    password: z.string().min(6, 'Password must be at least 6 characters'),
+    password: z
+      .string()
+      .min(8, 'Password must be at least 8 characters')
+      .max(20, 'Password cannot exceed 20 characters'),
     confirmPassword: z.string().min(1, 'Please confirm your password'),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -38,11 +45,23 @@ export const SignupPage: React.FC = () => {
   });
 
   const currentEmail = watch('email');
+  const nameValue = watch('name') || '';
+  const passwordValue = watch('password') || '';
+  const confirmPasswordValue = watch('confirmPassword') || '';
 
   const onSubmit = async (data: SignupFormData) => {
     setErrorMessage(null);
+    const trimmedName = data.name.trim();
+    if (trimmedName.length < 3 || trimmedName.length > 50) {
+      setErrorMessage(
+        trimmedName.length < 3
+          ? 'Username must be at least 3 characters.'
+          : 'Username cannot exceed 50 characters.'
+      );
+      return;
+    }
     try {
-      await registerUser(data.name, data.email, data.password, data.confirmPassword);
+      await registerUser(trimmedName, data.email, data.password, data.confirmPassword);
       navigate('/app/onboarding', { replace: true });
     } catch (err: any) {
       setErrorMessage(err.message || 'Registration failed. Please check your details.');
@@ -98,21 +117,37 @@ export const SignupPage: React.FC = () => {
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-foreground mb-1">
-                Display name
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-foreground">
+                  Username
+                </label>
+                <span
+                  className={`text-[11px] font-mono ${
+                    nameValue.length > 50
+                      ? 'text-rose-500 font-bold'
+                      : nameValue.length < 3 && nameValue.length > 0
+                      ? 'text-amber-500'
+                      : 'text-muted-foreground'
+                  }`}
+                >
+                  {nameValue.length}/50
+                </span>
+              </div>
               <div className="relative">
                 <UserIcon className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
-                  placeholder="e.g. Alex Rivera"
+                  placeholder="3 to 50 characters"
                   {...register('name')}
                   className={`w-full pl-9 pr-3 py-2 text-xs rounded-xl border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors ${
-                    errors.name ? 'border-rose-500' : 'border-border'
+                    errors.name || nameValue.length > 50 ? 'border-rose-500 ring-1 ring-rose-500' : 'border-border'
                   }`}
                 />
               </div>
-              {errors.name && (
+              {nameValue.length > 50 && (
+                <p className="text-[11px] text-rose-500 mt-1">Username cannot exceed 50 characters</p>
+              )}
+              {errors.name && nameValue.length <= 50 && (
                 <p className="text-[11px] text-rose-500 mt-1">{errors.name.message}</p>
               )}
             </div>
@@ -138,14 +173,28 @@ export const SignupPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-foreground mb-1">
-                Password
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-foreground">
+                  Password
+                </label>
+                <span
+                  className={`text-[11px] font-mono ${
+                    passwordValue.length === 20
+                      ? 'text-primary-600 font-bold'
+                      : passwordValue.length < 8 && passwordValue.length > 0
+                      ? 'text-amber-500'
+                      : 'text-muted-foreground'
+                  }`}
+                >
+                  {passwordValue.length}/20
+                </span>
+              </div>
               <div className="relative">
                 <Lock className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="password"
-                  placeholder="At least 6 characters"
+                  maxLength={20}
+                  placeholder="8 to 20 characters"
                   {...register('password')}
                   className={`w-full pl-9 pr-3 py-2 text-xs rounded-xl border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors ${
                     errors.password ? 'border-rose-500' : 'border-border'
@@ -158,13 +207,19 @@ export const SignupPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-foreground mb-1">
-                Confirm password
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-foreground">
+                  Confirm password
+                </label>
+                <span className="text-[11px] font-mono text-muted-foreground">
+                  {confirmPasswordValue.length}/20
+                </span>
+              </div>
               <div className="relative">
                 <Lock className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="password"
+                  maxLength={20}
                   placeholder="Repeat your password"
                   {...register('confirmPassword')}
                   className={`w-full pl-9 pr-3 py-2 text-xs rounded-xl border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors ${

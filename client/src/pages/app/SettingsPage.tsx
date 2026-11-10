@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Plus,
   Trash2,
+  Lock,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.js';
 import { useTheme } from '../../context/ThemeContext.js';
@@ -27,6 +28,17 @@ export const SettingsPage: React.FC = () => {
 
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileSuccess, setProfileSuccess] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+
+  // Password change state
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [savingPassword, setSavingPassword] = useState(false);
+  const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
 
   // Profile fields
   const [profileForm, setProfileForm] = useState({
@@ -74,14 +86,26 @@ export const SettingsPage: React.FC = () => {
 
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSavingProfile(true);
+    setProfileError(null);
     setProfileSuccess(false);
+
+    const trimmedName = profileForm.name.trim();
+    if (profileForm.name.length > 50) {
+      setProfileError('Username cannot exceed 50 characters');
+      return;
+    }
+    if (trimmedName.length < 3) {
+      setProfileError('Username must be at least 3 characters');
+      return;
+    }
+
+    setSavingProfile(true);
 
     try {
       const res = await apiRequest<{ user: any }>('/profile', {
         method: 'PATCH',
         body: JSON.stringify({
-          name: profileForm.name,
+          name: trimmedName,
           educationLevel: profileForm.educationLevel,
           academicYear: profileForm.academicYear,
           timezone: profileForm.timezone,
@@ -97,10 +121,62 @@ export const SettingsPage: React.FC = () => {
       updateUser(res.user);
       setProfileSuccess(true);
       setTimeout(() => setProfileSuccess(false), 3000);
-    } catch (err) {
+    } catch (err: any) {
+      setProfileError(err.message || 'Failed to update profile');
       console.error('Failed to update profile:', err);
     } finally {
       setSavingProfile(false);
+    }
+  };
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError(null);
+    setPasswordSuccess(null);
+
+    if (!passwordForm.currentPassword) {
+      setPasswordError('Current password is required');
+      return;
+    }
+
+    if (passwordForm.newPassword.length < 8) {
+      setPasswordError('Password must be at least 8 characters');
+      return;
+    }
+
+    if (passwordForm.newPassword.length > 20) {
+      setPasswordError('Password cannot exceed 20 characters');
+      return;
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordError('Passwords do not match');
+      return;
+    }
+
+    setSavingPassword(true);
+
+    try {
+      await apiRequest('/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({
+          currentPassword: passwordForm.currentPassword,
+          newPassword: passwordForm.newPassword,
+          confirmPassword: passwordForm.confirmPassword,
+        }),
+      });
+
+      setPasswordSuccess('Password updated successfully!');
+      setPasswordForm({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+      setTimeout(() => setPasswordSuccess(null), 3000);
+    } catch (err: any) {
+      setPasswordError(err.message || 'Failed to update password');
+    } finally {
+      setSavingPassword(false);
     }
   };
 
@@ -156,17 +232,45 @@ export const SettingsPage: React.FC = () => {
           </div>
         )}
 
+        {profileError && (
+          <div className="mb-4 p-3 rounded-xl bg-rose-50 text-rose-800 border border-rose-200 text-xs flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-rose-600" />
+            <span>{profileError}</span>
+          </div>
+        )}
+
         <form onSubmit={handleProfileSubmit} className="space-y-4 text-xs">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block font-semibold text-foreground mb-1">Display Name</label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block font-semibold text-foreground">Display Name</label>
+                <span className={`text-[11px] font-mono ${
+                  profileForm.name.length > 50
+                    ? 'text-rose-500 font-semibold'
+                    : profileForm.name.trim().length >= 3
+                    ? 'text-emerald-600'
+                    : 'text-muted-foreground'
+                }`}>
+                  {profileForm.name.length}/50
+                </span>
+              </div>
               <input
                 type="text"
                 required
                 value={profileForm.name}
                 onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
-                className="w-full px-3 py-2 rounded-xl border border-border bg-card text-foreground"
+                className={`w-full px-3 py-2 rounded-xl border bg-card text-foreground ${
+                  profileForm.name.length > 50 || (profileForm.name.length > 0 && profileForm.name.trim().length < 3)
+                    ? 'border-rose-500 focus:ring-rose-500'
+                    : 'border-border'
+                }`}
               />
+              {profileForm.name.length > 50 && (
+                <p className="text-[11px] text-rose-500 mt-1">Username cannot exceed 50 characters</p>
+              )}
+              {profileForm.name.length > 0 && profileForm.name.trim().length < 3 && (
+                <p className="text-[11px] text-rose-500 mt-1">Username must be at least 3 characters</p>
+              )}
             </div>
 
             <div>
@@ -339,6 +443,109 @@ export const SettingsPage: React.FC = () => {
             </div>
           ))}
         </div>
+      </Card>
+
+      {/* Security & Password Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Security & Password</CardTitle>
+          <CardDescription>Update your login password (must be between 8 and 20 characters)</CardDescription>
+        </CardHeader>
+
+        {passwordSuccess && (
+          <div className="mb-4 p-3 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            <span>{passwordSuccess}</span>
+          </div>
+        )}
+
+        {passwordError && (
+          <div className="mb-4 p-3 rounded-xl bg-rose-50 text-rose-800 border border-rose-200 text-xs flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-rose-600" />
+            <span>{passwordError}</span>
+          </div>
+        )}
+
+        <form onSubmit={handlePasswordSubmit} className="space-y-4 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block font-semibold text-foreground">Current Password</label>
+                <span className="text-[11px] font-mono text-muted-foreground">
+                  {passwordForm.currentPassword.length}/20
+                </span>
+              </div>
+              <input
+                type="password"
+                maxLength={20}
+                required
+                placeholder="Current password"
+                value={passwordForm.currentPassword}
+                onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl border border-border bg-card text-foreground"
+              />
+            </div>
+
+            <div>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block font-semibold text-foreground">New Password</label>
+                <span className={`text-[11px] font-mono ${
+                  passwordForm.newPassword.length > 20
+                    ? 'text-rose-500 font-semibold'
+                    : passwordForm.newPassword.length >= 8
+                    ? 'text-emerald-600'
+                    : 'text-muted-foreground'
+                }`}>
+                  {passwordForm.newPassword.length}/20
+                </span>
+              </div>
+              <input
+                type="password"
+                maxLength={20}
+                required
+                placeholder="8-20 characters"
+                value={passwordForm.newPassword}
+                onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl border border-border bg-card text-foreground"
+              />
+            </div>
+
+            <div>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block font-semibold text-foreground">Confirm New Password</label>
+                <span className={`text-[11px] font-mono ${
+                  passwordForm.confirmPassword.length > 20
+                    ? 'text-rose-500 font-semibold'
+                    : passwordForm.confirmPassword.length >= 8
+                    ? 'text-emerald-600'
+                    : 'text-muted-foreground'
+                }`}>
+                  {passwordForm.confirmPassword.length}/20
+                </span>
+              </div>
+              <input
+                type="password"
+                maxLength={20}
+                required
+                placeholder="Confirm new password"
+                value={passwordForm.confirmPassword}
+                onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl border border-border bg-card text-foreground"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <Button
+              type="submit"
+              size="sm"
+              isLoading={savingPassword}
+              leftIcon={<Lock className="w-3.5 h-3.5" />}
+            >
+              Update Password
+            </Button>
+          </div>
+        </form>
       </Card>
 
       {/* Theme Preference Card */}

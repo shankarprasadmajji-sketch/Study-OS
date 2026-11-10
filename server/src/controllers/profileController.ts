@@ -4,7 +4,12 @@ import { AuthenticatedRequest } from '../middleware/auth.js';
 import { dataStore } from '../services/dataStore.js';
 
 export const updateProfileSchema = z.object({
-  name: z.string().min(2).max(80).optional(),
+  name: z
+    .string()
+    .trim()
+    .min(3, 'Username must be at least 3 characters')
+    .max(50, 'Username cannot exceed 50 characters')
+    .optional(),
   educationLevel: z.string().optional(),
   academicYear: z.string().optional(),
   timezone: z.string().optional(),
@@ -20,7 +25,12 @@ export const updateProfileSchema = z.object({
 });
 
 export const onboardingSchema = z.object({
-  name: z.string().min(2).optional(),
+  name: z
+    .string()
+    .trim()
+    .min(3, 'Username must be at least 3 characters')
+    .max(50, 'Username cannot exceed 50 characters')
+    .optional(),
   educationLevel: z.string().optional(),
   academicYear: z.string().optional(),
   timezone: z.string().optional(),
@@ -51,7 +61,7 @@ export const profileController = {
     const allowedUpdates = req.body;
     // Security allowlist: prevent privilege escalation or changing email/password via profile patch
     const sanitized: any = {};
-    if (allowedUpdates.name) sanitized.name = allowedUpdates.name;
+    if (allowedUpdates.name) sanitized.name = allowedUpdates.name.trim();
     if (allowedUpdates.educationLevel) sanitized.educationLevel = allowedUpdates.educationLevel;
     if (allowedUpdates.academicYear) sanitized.academicYear = allowedUpdates.academicYear;
     if (allowedUpdates.timezone) sanitized.timezone = allowedUpdates.timezone;
@@ -69,6 +79,7 @@ export const profileController = {
   async completeOnboarding(req: AuthenticatedRequest, res: Response): Promise<void> {
     const updates = {
       ...req.body,
+      name: typeof req.body.name === 'string' ? req.body.name.trim() : req.body.name,
       onboardingCompleted: true,
     };
     const updated = await dataStore.updateUser(req.user!.userId, updates);

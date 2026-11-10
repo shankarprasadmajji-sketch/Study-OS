@@ -4,6 +4,7 @@ import {
   registerSchema,
   loginSchema,
   googleAuthSchema,
+  changePasswordSchema,
 } from '../controllers/authController.js';
 import { validateBody } from '../middleware/validate.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -18,5 +19,11 @@ router.get('/me', requireAuth, authController.me);
 router.post('/refresh', authController.refresh);
 router.post('/forgot-password', authController.forgotPassword);
 router.post('/reset-password', authController.resetPassword);
+router.post(
+  '/change-password',
+  requireAuth,
+  validateBody(changePasswordSchema),
+  authController.changePassword
+);
 
 export default router;

@@ -11,7 +11,10 @@ import { Card } from '../../components/ui/Card.js';
 const resetSchema = z
   .object({
     token: z.string().min(1, 'Reset token is required'),
-    newPassword: z.string().min(6, 'Password must be at least 6 characters'),
+    newPassword: z
+      .string()
+      .min(8, 'Password must be at least 8 characters')
+      .max(20, 'Password cannot exceed 20 characters'),
     confirmPassword: z.string().min(1, 'Please confirm your password'),
   })
   .refine((d) => d.newPassword === d.confirmPassword, {
@@ -29,10 +32,14 @@ export const ResetPasswordPage: React.FC = () => {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<ResetFormData>({
     resolver: zodResolver(resetSchema),
   });
+
+  const newPasswordValue = watch('newPassword') || '';
+  const confirmPasswordValue = watch('confirmPassword') || '';
 
   const onSubmit = async (data: ResetFormData) => {
     setErrorMessage(null);
@@ -106,14 +113,26 @@ export const ResetPasswordPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-foreground mb-1">
-                  New Password
-                </label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-xs font-semibold text-foreground">
+                    New Password
+                  </label>
+                  <span className={`text-[11px] font-mono ${
+                    newPasswordValue.length > 20
+                      ? 'text-rose-500 font-semibold'
+                      : newPasswordValue.length >= 8
+                      ? 'text-emerald-600'
+                      : 'text-muted-foreground'
+                  }`}>
+                    {newPasswordValue.length}/20
+                  </span>
+                </div>
                 <div className="relative">
                   <Lock className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="password"
-                    placeholder="At least 6 characters"
+                    maxLength={20}
+                    placeholder="8-20 characters"
                     {...register('newPassword')}
                     className={`w-full pl-9 pr-3 py-2 text-xs rounded-xl border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary-500 ${
                       errors.newPassword ? 'border-rose-500' : 'border-border'
@@ -126,13 +145,25 @@ export const ResetPasswordPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-foreground mb-1">
-                  Confirm New Password
-                </label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-xs font-semibold text-foreground">
+                    Confirm New Password
+                  </label>
+                  <span className={`text-[11px] font-mono ${
+                    confirmPasswordValue.length > 20
+                      ? 'text-rose-500 font-semibold'
+                      : confirmPasswordValue.length >= 8
+                      ? 'text-emerald-600'
+                      : 'text-muted-foreground'
+                  }`}>
+                    {confirmPasswordValue.length}/20
+                  </span>
+                </div>
                 <div className="relative">
                   <Lock className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="password"
+                    maxLength={20}
                     placeholder="Confirm password"
                     {...register('confirmPassword')}
                     className={`w-full pl-9 pr-3 py-2 text-xs rounded-xl border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary-500 ${

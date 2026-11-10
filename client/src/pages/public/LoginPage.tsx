@@ -11,7 +11,10 @@ import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton.js'
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(1, 'Password is required'),
+  password: z
+    .string()
+    .min(1, 'Password is required')
+    .max(20, 'Password cannot exceed 20 characters'),
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
@@ -34,6 +37,7 @@ export const LoginPage: React.FC = () => {
   });
 
   const currentEmail = watch('email');
+  const passwordValue = watch('password') || '';
 
   const onSubmit = async (data: LoginFormData) => {
     setErrorMessage(null);
@@ -115,9 +119,14 @@ export const LoginPage: React.FC = () => {
 
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-semibold text-foreground">
-                  Password
-                </label>
+                <div className="flex items-center gap-2">
+                  <label className="block text-xs font-semibold text-foreground">
+                    Password
+                  </label>
+                  <span className="text-[10px] font-mono text-muted-foreground">
+                    ({passwordValue.length}/20)
+                  </span>
+                </div>
                 <Link
                   to="/forgot-password"
                   className="text-[11px] text-primary-600 hover:underline"
@@ -129,6 +138,7 @@ export const LoginPage: React.FC = () => {
                 <Lock className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="password"
+                  maxLength={20}
                   placeholder="••••••••"
                   {...register('password')}
                   className={`w-full pl-9 pr-3 py-2 text-xs rounded-xl border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors ${

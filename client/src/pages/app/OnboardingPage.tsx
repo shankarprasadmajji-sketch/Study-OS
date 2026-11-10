@@ -24,7 +24,7 @@ export const OnboardingPage: React.FC = () => {
 
   // Step 2: Profile state (silently auto-detects browser timezone)
   const [profileData, setProfileData] = useState({
-    name: user?.name || '',
+    name: user?.name || 'Student',
     educationLevel: user?.educationLevel || 'Undergraduate',
     academicYear: user?.academicYear || 'Year 1',
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
@@ -48,12 +48,13 @@ export const OnboardingPage: React.FC = () => {
 
   const handleCompleteOnboarding = async () => {
     setIsSubmitting(true);
+    const trimmedName = profileData.name.trim();
     try {
       // 1. Update academic profile (with auto-detected browser timezone)
       await apiRequest('/profile/onboarding', {
         method: 'PATCH',
         body: JSON.stringify({
-          name: profileData.name,
+          name: trimmedName,
           educationLevel: profileData.educationLevel,
           academicYear: profileData.academicYear,
           timezone: profileData.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
@@ -73,7 +74,7 @@ export const OnboardingPage: React.FC = () => {
       });
 
       updateUser({
-        name: profileData.name,
+        name: trimmedName,
         educationLevel: profileData.educationLevel,
         academicYear: profileData.academicYear,
         onboardingCompleted: true,
@@ -83,7 +84,7 @@ export const OnboardingPage: React.FC = () => {
     } catch (err: any) {
       console.error('Failed to complete onboarding:', err);
       // Fallback redirect so user isn't stuck
-      updateUser({ onboardingCompleted: true });
+      updateUser({ name: trimmedName, onboardingCompleted: true });
       navigate('/app/dashboard');
     } finally {
       setIsSubmitting(false);
@@ -188,15 +189,36 @@ export const OnboardingPage: React.FC = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-foreground mb-1">
-                  Full Name
-                </label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-xs font-semibold text-foreground">
+                    Full Name
+                  </label>
+                  <span className={`text-[11px] font-mono ${
+                    profileData.name.length > 50
+                      ? 'text-rose-500 font-semibold'
+                      : profileData.name.trim().length >= 3
+                      ? 'text-emerald-600'
+                      : 'text-muted-foreground'
+                  }`}>
+                    {profileData.name.length}/50
+                  </span>
+                </div>
                 <input
                   type="text"
                   value={profileData.name}
                   onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-border bg-card text-foreground focus:ring-2 focus:ring-primary-500"
+                  className={`w-full px-3 py-2 text-xs rounded-xl border bg-card text-foreground focus:ring-2 focus:ring-primary-500 ${
+                    profileData.name.length > 50 || (profileData.name.length > 0 && profileData.name.trim().length < 3)
+                      ? 'border-rose-500'
+                      : 'border-border'
+                  }`}
                 />
+                {profileData.name.length > 50 && (
+                  <p className="text-[11px] text-rose-500 mt-1">Username cannot exceed 50 characters</p>
+                )}
+                {profileData.name.length > 0 && profileData.name.trim().length < 3 && (
+                  <p className="text-[11px] text-rose-500 mt-1">Username must be at least 3 characters</p>
+                )}
               </div>
 
               <div>
@@ -285,7 +307,12 @@ export const OnboardingPage: React.FC = () => {
               <Button variant="ghost" size="sm" onClick={() => setStep(1)} leftIcon={<ArrowLeft className="w-4 h-4" />}>
                 Back
               </Button>
-              <Button size="sm" onClick={() => setStep(3)} rightIcon={<ArrowRight className="w-4 h-4" />}>
+              <Button
+                size="sm"
+                onClick={() => setStep(3)}
+                disabled={profileData.name.trim().length < 3 || profileData.name.length > 50}
+                rightIcon={<ArrowRight className="w-4 h-4" />}
+              >
                 Continue to Availability
               </Button>
             </div>
