@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   BookOpen,
   Plus,
@@ -54,9 +54,17 @@ export const SubjectsPage: React.FC = () => {
     }
   };
 
+  const [searchParams] = useSearchParams();
+
   useEffect(() => {
     fetchSubjects();
   }, []);
+
+  useEffect(() => {
+    if (searchParams.get('action') === 'new') {
+      openCreateModal();
+    }
+  }, [searchParams]);
 
   const openCreateModal = () => {
     setEditingSubject(null);

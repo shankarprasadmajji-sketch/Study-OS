@@ -122,33 +122,47 @@ export const DashboardPage: React.FC = () => {
     );
   }
 
-  // If user has zero subjects, show setup checklist
+  // If user has zero subjects, show welcome state & prompt to add first subject
   if (subjects.length === 0) {
     return (
-      <div className="max-w-2xl mx-auto py-10">
+      <div className="max-w-2xl mx-auto py-10 px-4">
         <Card className="p-8 text-center space-y-6">
           <div className="w-14 h-14 rounded-2xl bg-primary-50 text-primary-600 dark:bg-primary-950/60 dark:text-primary-400 flex items-center justify-center mx-auto shadow-sm">
             <BookOpen className="w-7 h-7" />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-foreground">Welcome to Your StudyOS Workspace</h2>
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-primary-600 block mb-1">
+              Welcome to StudyOS, {user?.name || 'Student'}!
+            </span>
+            <h2 className="text-2xl font-bold text-foreground">No subjects added yet.</h2>
             <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto leading-relaxed">
-              Let’s get your semester organized. Follow this quick checklist to unlock your deterministic study schedule.
+              Start by adding your subjects and the topics you want to learn.
             </p>
           </div>
 
-          <div className="space-y-3 text-left">
+          <div className="pt-2">
+            <Link to="/app/subjects?action=new">
+              <Button size="lg" leftIcon={<Plus className="w-4 h-4" />}>
+                Add Your First Subject
+              </Button>
+            </Link>
+          </div>
+
+          <div className="space-y-3 text-left pt-4 border-t border-border">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Quick Setup Guide
+            </h3>
             <Link
-              to="/app/subjects"
-              className="p-4 rounded-xl border border-border bg-card hover:border-primary-400 flex items-center justify-between transition-colors block"
+              to="/app/subjects?action=new"
+              className="p-3.5 rounded-xl border border-primary-500/40 bg-primary-50/20 dark:bg-primary-950/20 hover:border-primary-500 flex items-center justify-between transition-colors block"
             >
               <div className="flex items-center gap-3">
-                <span className="w-6 h-6 rounded-full bg-primary-100 text-primary-700 text-xs font-bold flex items-center justify-center">
+                <span className="w-6 h-6 rounded-full bg-primary-600 text-white text-xs font-bold flex items-center justify-center">
                   1
                 </span>
                 <div>
                   <h4 className="text-xs font-semibold text-foreground">Add Your First Subject</h4>
-                  <p className="text-[11px] text-muted-foreground">Add courses, exam dates, and course codes</p>
+                  <p className="text-[11px] text-muted-foreground">Add courses, optional codes, and exam dates</p>
                 </div>
               </div>
               <ArrowRight className="w-4 h-4 text-primary-600" />
@@ -156,7 +170,7 @@ export const DashboardPage: React.FC = () => {
 
             <Link
               to="/app/topics"
-              className="p-4 rounded-xl border border-border bg-card hover:border-primary-400 flex items-center justify-between transition-colors block"
+              className="p-3.5 rounded-xl border border-border bg-card hover:border-primary-400 flex items-center justify-between transition-colors block opacity-80"
             >
               <div className="flex items-center gap-3">
                 <span className="w-6 h-6 rounded-full bg-muted text-muted-foreground text-xs font-bold flex items-center justify-center">
@@ -164,7 +178,7 @@ export const DashboardPage: React.FC = () => {
                 </span>
                 <div>
                   <h4 className="text-xs font-semibold text-foreground">Break Down Syllabus Topics</h4>
-                  <p className="text-[11px] text-muted-foreground">Estimate minutes, difficulty, and prerequisites</p>
+                  <p className="text-[11px] text-muted-foreground">Add chapters, estimated study minutes, and difficulty</p>
                 </div>
               </div>
               <ArrowRight className="w-4 h-4 text-muted-foreground" />
@@ -172,7 +186,7 @@ export const DashboardPage: React.FC = () => {
 
             <Link
               to="/app/study-plan"
-              className="p-4 rounded-xl border border-border bg-card hover:border-primary-400 flex items-center justify-between transition-colors block"
+              className="p-3.5 rounded-xl border border-border bg-card hover:border-primary-400 flex items-center justify-between transition-colors block opacity-80"
             >
               <div className="flex items-center gap-3">
                 <span className="w-6 h-6 rounded-full bg-muted text-muted-foreground text-xs font-bold flex items-center justify-center">
@@ -180,18 +194,12 @@ export const DashboardPage: React.FC = () => {
                 </span>
                 <div>
                   <h4 className="text-xs font-semibold text-foreground">Generate Study Plan</h4>
-                  <p className="text-[11px] text-muted-foreground">Let the scheduler build your daily study sheet</p>
+                  <p className="text-[11px] text-muted-foreground">Let the scheduler build your daily study schedule</p>
                 </div>
               </div>
               <ArrowRight className="w-4 h-4 text-muted-foreground" />
             </Link>
           </div>
-
-          <Link to="/app/subjects" className="inline-block pt-2">
-            <Button size="lg" rightIcon={<ArrowRight className="w-4 h-4" />}>
-              Add Subjects Now
-            </Button>
-          </Link>
         </Card>
       </div>
     );

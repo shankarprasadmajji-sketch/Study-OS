@@ -1,103 +1,81 @@
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { OnboardingPage } from '../pages/app/OnboardingPage.js';
+import { DashboardPage } from '../pages/app/DashboardPage.js';
 import { AuthProvider } from '../context/AuthContext.js';
 import { ThemeProvider } from '../context/ThemeContext.js';
 
-const renderOnboarding = () => {
-  return render(
-    <BrowserRouter>
-      <ThemeProvider>
-        <AuthProvider>
-          <OnboardingPage />
-        </AuthProvider>
-      </ThemeProvider>
-    </BrowserRouter>
-  );
-};
-
-describe('StudyOS — Onboarding Flow & Clean Academic Setup', () => {
+describe('StudyOS — Simplified Onboarding & Dashboard Workspace', () => {
   it('does NOT display Timezone input in Academic Profile (Step 2)', async () => {
-    renderOnboarding();
+    render(
+      <BrowserRouter>
+        <ThemeProvider>
+          <AuthProvider>
+            <OnboardingPage />
+          </AuthProvider>
+        </ThemeProvider>
+      </BrowserRouter>
+    );
 
-    // Click "Begin Setup" to go to Step 2
-    const beginBtn = screen.getByText('Begin Setup');
-    fireEvent.click(beginBtn);
+    fireEvent.click(screen.getByText('Begin Setup'));
 
-    // Verify Step 2 is shown
     expect(screen.getByText('Your Academic Profile')).toBeInTheDocument();
     expect(screen.getByText('Full Name')).toBeInTheDocument();
     expect(screen.getByText('Education Level')).toBeInTheDocument();
     expect(screen.getByText('Current Academic Year / Semester')).toBeInTheDocument();
 
-    // Timezone field must be completely absent from UI
     expect(screen.queryByLabelText(/timezone/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/^timezone$/i)).not.toBeInTheDocument();
   });
 
-  it('initially displays clean empty state in Step 4 with no pre-filled sample subjects', async () => {
-    renderOnboarding();
+  it('navigates directly from Availability (Step 3) to Review & Finalize (Step 4 of 4) without asking for subjects', async () => {
+    render(
+      <BrowserRouter>
+        <ThemeProvider>
+          <AuthProvider>
+            <OnboardingPage />
+          </AuthProvider>
+        </ThemeProvider>
+      </BrowserRouter>
+    );
 
     // Step 1 -> Step 2
     fireEvent.click(screen.getByText('Begin Setup'));
 
     // Step 2 -> Step 3
     fireEvent.click(screen.getByText('Continue to Availability'));
+    expect(screen.getByText('Weekly Study Availability')).toBeInTheDocument();
 
-    // Step 3 -> Step 4
-    fireEvent.click(screen.getByText('Continue to Subjects'));
+    // Step 3 -> Step 4 (Review)
+    fireEvent.click(screen.getByText('Review & Confirm'));
 
-    expect(screen.getByText('Subjects & Syllabus Topics')).toBeInTheDocument();
+    // Step 4 is Review & Finalize
+    expect(screen.getByText('Everything Looks Ready!')).toBeInTheDocument();
+    expect(screen.getByText('Launch StudyOS Workspace')).toBeInTheDocument();
 
-    // Verify clean empty state
-    expect(screen.getByText('No subjects added yet')).toBeInTheDocument();
-    expect(screen.getByText('Add your first subject to get started.')).toBeInTheDocument();
-
-    // Ensure sample subjects are completely removed
+    // Verify Subjects & Syllabus step does not exist in onboarding
+    expect(screen.queryByText('Subjects & Syllabus Topics')).not.toBeInTheDocument();
+    expect(screen.queryByText('Course Code')).not.toBeInTheDocument();
     expect(screen.queryByText('Computer Architecture')).not.toBeInTheDocument();
-    expect(screen.queryByText('Data Structures & Algorithms')).not.toBeInTheDocument();
-    expect(screen.queryByText('Calculus II')).not.toBeInTheDocument();
   });
 
-  it('allows student to manually enter real subject and syllabus topics', async () => {
-    renderOnboarding();
+  it('renders Dashboard with clean empty state when no subjects have been added', async () => {
+    render(
+      <BrowserRouter>
+        <ThemeProvider>
+          <AuthProvider>
+            <DashboardPage />
+          </AuthProvider>
+        </ThemeProvider>
+      </BrowserRouter>
+    );
 
-    // Navigate to Step 4
-    fireEvent.click(screen.getByText('Begin Setup'));
-    fireEvent.click(screen.getByText('Continue to Availability'));
-    fireEvent.click(screen.getByText('Continue to Subjects'));
-
-    // Enter Subject Name and Code
-    const nameInput = screen.getByPlaceholderText(/e\.g\. Distributed Systems/i);
-    const codeInput = screen.getByPlaceholderText(/e\.g\. CS 340/i);
-
-    fireEvent.change(nameInput, { target: { value: 'Discrete Mathematics' } });
-    fireEvent.change(codeInput, { target: { value: 'MATH 220' } });
-
-    // Click Add Subject
-    const addSubjBtn = screen.getByText('Add Subject');
-    fireEvent.click(addSubjBtn);
-
-    // Subject is now rendered
-    expect(screen.getByText('Discrete Mathematics')).toBeInTheDocument();
-    expect(screen.getByText('MATH 220')).toBeInTheDocument();
-    expect(screen.getByText('No exam date set')).toBeInTheDocument();
-
-    // Shows "No topics added yet." under the newly created subject
-    expect(screen.getByText('No topics added yet.')).toBeInTheDocument();
-
-    // Add a syllabus topic under this subject
-    const topicTitleInput = screen.getByPlaceholderText(/Topic title \(e\.g\. Chapter 1: Introduction\)/i);
-    fireEvent.change(topicTitleInput, { target: { value: 'Set Theory & Logic' } });
-
-    const addTopicBtn = screen.getByText('Add Topic');
-    fireEvent.click(addTopicBtn);
-
-    // Topic is now added
-    expect(screen.getByText('Set Theory & Logic')).toBeInTheDocument();
-    expect(screen.getByText('60 mins')).toBeInTheDocument();
-    expect(screen.queryByText('No topics added yet.')).not.toBeInTheDocument();
+    expect(await screen.findByText('No subjects added yet.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Start by adding your subjects and the topics you want to learn.')
+    ).toBeInTheDocument();
+    expect(screen.getAllByText('Add Your First Subject').length).toBeGreaterThanOrEqual(1);
   });
 });
