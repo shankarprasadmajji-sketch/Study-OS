@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
 import { clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
 
 interface ModalProps {
   isOpen: boolean;
@@ -52,9 +53,11 @@ export const Modal: React.FC<ModalProps> = ({
 
       {/* Modal Dialog Box */}
       <div
-        className={clsx(
-          'relative w-full rounded-2xl bg-card border border-border shadow-elevated p-6 z-10 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto',
-          maxWidths[maxWidth]
+        className={twMerge(
+          clsx(
+            'relative w-full rounded-2xl bg-card border border-border shadow-elevated p-6 z-10 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto',
+            maxWidths[maxWidth]
+          )
         )}
       >
         <div className="flex items-start justify-between mb-4">

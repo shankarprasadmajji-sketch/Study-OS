@@ -48,6 +48,11 @@
   input, select, textarea {
     @apply text-foreground placeholder:text-muted-foreground/80;
   }
+
+  select option {
+    background-color: hsl(var(--card));
+    color: hsl(var(--foreground));
+  }
 }
 
 /* Custom Scrollbars */

@@ -232,33 +232,36 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         {/* Header Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2.5">
           <Button
+            variant="ghost"
             size="sm"
             onClick={() => setIsQuickNoteOpen(true)}
-            leftIcon={<FileText className="w-3.5 h-3.5" />}
-            className="bg-white/10 hover:bg-white/20 text-white border border-white/20"
+            leftIcon={<FileText className="w-3.5 h-3.5 text-white" />}
+            className="bg-white/15 hover:bg-white/25 text-white border border-white/25 backdrop-blur-sm"
           >
-            Quick Note
+            <span className="text-white font-medium">Quick Note</span>
           </Button>
 
           <Link to="/app/music">
             <Button
+              variant="ghost"
               size="sm"
-              leftIcon={<Headphones className="w-3.5 h-3.5" />}
-              className="bg-white/10 hover:bg-white/20 text-white border border-white/20"
+              leftIcon={<Headphones className="w-3.5 h-3.5 text-white" />}
+              className="bg-white/15 hover:bg-white/25 text-white border border-white/25 backdrop-blur-sm"
             >
-              Study Music
+              <span className="text-white font-medium">Study Music</span>
             </Button>
           </Link>
 
           <Link to="/app/focus">
             <Button
+              variant="white"
               size="sm"
-              leftIcon={<Play className="w-3.5 h-3.5" />}
-              className="bg-white text-primary-800 hover:bg-white/90 shadow-sm"
+              leftIcon={<Play className="w-3.5 h-3.5 text-primary-900 fill-primary-900" />}
+              className="bg-white text-primary-900 hover:bg-slate-100 font-bold shadow-sm border border-white/40 dark:bg-white dark:text-primary-900 dark:hover:bg-slate-100"
             >
-              Start Focus Session
+              <span className="text-primary-900 dark:text-primary-900 font-bold">Start Focus Session</span>
             </Button>
           </Link>
         </div>

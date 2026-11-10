@@ -6,6 +6,7 @@ import { AuthProvider } from '../context/AuthContext.js';
 import { ThemeProvider } from '../context/ThemeContext.js';
 import { Header } from '../components/layout/Header.js';
 import { ProfilePage } from '../pages/app/ProfilePage.js';
+import { DashboardPage } from '../pages/app/DashboardPage.js';
 import { EditProfileModal } from '../components/profile/EditProfileModal.js';
 import * as clientModule from '../api/client.js';
 
@@ -214,6 +215,47 @@ describe('StudyOS — User Profile Icon, Modal & Theme Contrast Suite', () => {
       const savedTheme = localStorage.getItem('studyos_theme');
       expect(savedTheme).toBeTruthy();
       expect(['light', 'dark']).toContain(savedTheme);
+    });
+  });
+
+  describe('5. Dashboard Action Buttons & Theme Contrast', () => {
+    it('renders all three welcome banner action buttons with visible labels, icons and non-conflicting styling', async () => {
+      vi.spyOn(clientModule, 'apiRequest').mockImplementation(async (path) => {
+        if (path === '/auth/me') return { user: mockUser };
+        if (path === '/subjects') return { subjects: [{ _id: 's1', name: 'Computer Science' }] };
+        if (path === '/topics') return { topics: [{ _id: 't1', title: 'Algorithms' }] };
+        if (path === '/analytics/streaks') return { streaks: { currentStreak: 3, longestStreak: 7 } };
+        if (path === '/analytics/accuracy') return { accuracy: { accuracyPercent: 92 } };
+        if (path === '/study-sessions/today') return { metrics: { totalSessionsToday: 2 }, sessions: [] };
+        if (path === '/history') return { history: [] };
+        return {};
+      });
+
+      renderWithProviders(<DashboardPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Academic Command Center')).toBeInTheDocument();
+      });
+
+      // Button 1: Quick Note (in welcome banner)
+      const quickNoteBtn = screen.getByRole('button', { name: /^quick note$/i });
+      expect(quickNoteBtn).toBeInTheDocument();
+      expect(quickNoteBtn).toHaveTextContent('Quick Note');
+      expect(quickNoteBtn.className).toContain('text-white');
+
+      // Button 2: Study Music
+      const musicBtn = screen.getByRole('button', { name: /study music/i });
+      expect(musicBtn).toBeInTheDocument();
+      expect(musicBtn).toHaveTextContent('Study Music');
+      expect(musicBtn.className).toContain('text-white');
+
+      // Button 3: Start Focus Session (Must NOT be blank white button!)
+      const focusBtn = screen.getByRole('button', { name: /start focus session/i });
+      expect(focusBtn).toBeInTheDocument();
+      expect(focusBtn).toHaveTextContent('Start Focus Session');
+      // Must contain high-contrast dark text class and not drop text in cascade
+      expect(focusBtn.className).toContain('text-primary-900');
+      expect(focusBtn.className).toContain('bg-white');
     });
   });
 });

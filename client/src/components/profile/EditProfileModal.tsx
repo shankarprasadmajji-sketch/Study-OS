@@ -279,3 +279,4 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
     </Modal>
   );
 };
+

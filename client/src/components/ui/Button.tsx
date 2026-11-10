@@ -1,9 +1,14 @@
 import React from 'react';
-import { clsx } from 'clsx';
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
 import { Loader2 } from 'lucide-react';
 
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'white';
   size?: 'sm' | 'md' | 'lg';
   isLoading?: boolean;
   leftIcon?: React.ReactNode;
@@ -35,6 +40,8 @@ export const Button: React.FC<ButtonProps> = ({
       'bg-transparent hover:bg-muted text-foreground focus:ring-slate-400',
     danger:
       'bg-red-600 hover:bg-red-700 text-white focus:ring-red-500 shadow-sm',
+    white:
+      'bg-white text-primary-900 hover:bg-slate-100 font-bold shadow-sm focus:ring-primary-500 border border-white/40 dark:bg-white dark:text-primary-900 dark:hover:bg-slate-100',
   };
 
   const sizes = {
@@ -45,7 +52,7 @@ export const Button: React.FC<ButtonProps> = ({
 
   return (
     <button
-      className={clsx(baseStyles, variants[variant], sizes[size], className)}
+      className={twMerge(clsx(baseStyles, variants[variant], sizes[size], className))}
       disabled={disabled || isLoading}
       {...props}
     >
