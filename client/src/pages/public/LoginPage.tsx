@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { GraduationCap, Mail, Lock, AlertCircle, Play } from 'lucide-react';
+import { GraduationCap, Mail, Lock, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.js';
 import { Button } from '../../components/ui/Button.js';
 import { Card } from '../../components/ui/Card.js';
@@ -17,18 +17,16 @@ const loginSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>;
 
 export const LoginPage: React.FC = () => {
-  const { login, loginAsDemo } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as any)?.from?.pathname || '/app/dashboard';
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isDemoLoading, setIsDemoLoading] = useState(false);
 
   const {
     register,
     handleSubmit,
-    setValue,
     watch,
     formState: { errors, isSubmitting },
   } = useForm<LoginFormData>({
@@ -45,24 +43,6 @@ export const LoginPage: React.FC = () => {
     } catch (err: any) {
       setErrorMessage(err.message || 'Login failed. Please verify your email and password.');
     }
-  };
-
-  const handleQuickDemo = async () => {
-    setIsDemoLoading(true);
-    setErrorMessage(null);
-    try {
-      await loginAsDemo();
-      navigate('/app/dashboard', { replace: true });
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Demo login failed.');
-    } finally {
-      setIsDemoLoading(false);
-    }
-  };
-
-  const fillDemoCredentials = () => {
-    setValue('email', 'alex.rivera@university.edu');
-    setValue('password', 'DemoStudent123!');
   };
 
   return (
@@ -165,29 +145,6 @@ export const LoginPage: React.FC = () => {
               Sign In
             </Button>
           </form>
-
-          {/* Quick Demo Login Option */}
-          <div className="mt-6 pt-6 border-t border-border space-y-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              onClick={handleQuickDemo}
-              isLoading={isDemoLoading}
-              leftIcon={<Play className="w-3.5 h-3.5 text-primary-600 fill-primary-600" />}
-            >
-              One-Click Demo Student Login
-            </Button>
-            <div className="text-center">
-              <button
-                type="button"
-                onClick={fillDemoCredentials}
-                className="text-[11px] text-muted-foreground hover:text-foreground underline"
-              >
-                Or fill demo credentials in fields
-              </button>
-            </div>
-          </div>
         </Card>
 
         <p className="text-center text-xs text-muted-foreground mt-6">
