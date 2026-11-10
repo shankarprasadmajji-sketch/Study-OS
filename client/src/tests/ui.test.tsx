@@ -98,7 +98,7 @@ describe('StudyOS UI Components & Feature Expansion', () => {
   // STUDY MUSIC TESTS
   // ==========================================
   describe('Study Music Data & MiniPlayer Component', () => {
-    it('provides all 6 required music categories with functional tracks', () => {
+    it('provides music categories with 0 preloaded songs (starts completely empty)', () => {
       const categoryIds = CATEGORIES.map((c) => c.id);
       expect(categoryIds).toContain('lofi');
       expect(categoryIds).toContain('piano');
@@ -107,44 +107,44 @@ describe('StudyOS UI Components & Feature Expansion', () => {
       expect(categoryIds).toContain('nature');
       expect(categoryIds).toContain('whitenoise');
 
-      expect(STUDY_TRACKS.length).toBeGreaterThanOrEqual(10);
-      STUDY_TRACKS.forEach((track) => {
-        expect(track.id).toBeDefined();
-        expect(track.title).toBeDefined();
-        expect(track.artist).toBeDefined();
-        expect(track.duration).toBeGreaterThan(0);
-        expect(track.audioUrl).toBeDefined();
-      });
+      // Verifies all built-in/demo songs are completely removed
+      expect(STUDY_TRACKS.length).toBe(0);
     });
 
-    it('renders MiniMusicPlayer with track info and controls inside MusicProvider', () => {
+    it('does not render MiniMusicPlayer or fake songs when library is empty', () => {
       render(
         <BrowserRouter>
-          <MusicProvider>
-            <MiniMusicPlayer />
-          </MusicProvider>
+          <AuthProvider>
+            <MusicProvider>
+              <MiniMusicPlayer />
+            </MusicProvider>
+          </AuthProvider>
         </BrowserRouter>
       );
 
-      // Current track title should be displayed
-      expect(screen.getByText(STUDY_TRACKS[0].title)).toBeInTheDocument();
-      expect(screen.getByText(/ChillHop Scholar/i)).toBeInTheDocument();
-      // Play and Next buttons are present
-      expect(screen.getByTitle('Play')).toBeInTheDocument();
-      expect(screen.getByTitle(/Next/i)).toBeInTheDocument();
+      // No fake tracks or default demo artists displayed
+      expect(screen.queryByText(/ChillHop Scholar/i)).not.toBeInTheDocument();
+      expect(screen.queryByTitle('Play')).not.toBeInTheDocument();
     });
 
-    it('renders MusicPage with Upload MP3 button and My Uploads category', () => {
+    it('renders MusicPage with clean empty state when library is empty', () => {
       render(
         <BrowserRouter>
-          <MusicProvider>
-            <MusicPage />
-          </MusicProvider>
+          <AuthProvider>
+            <MusicProvider>
+              <MusicPage />
+            </MusicProvider>
+          </AuthProvider>
         </BrowserRouter>
       );
 
-      expect(screen.getByRole('button', { name: /upload mp3/i })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /my uploads/i })).toBeInTheDocument();
+      // Verify exact required empty-state messages
+      expect(screen.getByText('Your Music Library is Empty')).toBeInTheDocument();
+      expect(
+        screen.getByText('Upload your own MP3 files to start building your study music collection.')
+      ).toBeInTheDocument();
+      expect(screen.getAllByRole('button', { name: /upload mp3/i }).length).toBeGreaterThanOrEqual(1);
+      expect(screen.queryByText(/ChillHop Scholar/i)).not.toBeInTheDocument();
     });
   });
 
