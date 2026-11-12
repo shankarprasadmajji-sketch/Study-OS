@@ -119,8 +119,10 @@ class GeminiService {
       );
     }
     if (!this.client) {
-      this.client = new GoogleGenAI({ apiKey: key });
-    }
+this.client = new GoogleGenAI({
+  apiKey: key,
+  apiVersion: 'v1beta'
+});    }
     return this.client;
   }
 
