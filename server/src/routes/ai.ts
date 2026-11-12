@@ -23,6 +23,7 @@ router.use(requireAuth);
 // 0. AI Onboarding Assistant: Propose Syllabus & Generate Workspace
 router.post('/suggest-syllabus', aiGenerativeLimiter, aiController.suggestSyllabus);
 router.post('/generate-workspace', aiGenerativeLimiter, aiController.generateWorkspace);
+router.post('/generate-study-workspace', aiGenerativeLimiter, aiController.generateStudyWorkspace);
 
 // 1. AI status
 router.get('/status', aiController.getStatus);

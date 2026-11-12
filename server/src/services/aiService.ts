@@ -1,4 +1,5 @@
 import { config } from '../config/env.js';
+import { geminiService } from './geminiService.js';
 
 export interface AIStatus {
   configured: boolean;
@@ -143,17 +144,16 @@ export const aiService = {
    * Get current AI provider configuration status
    */
   getAIStatus(): AIStatus {
-    const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-    const openaiKey = process.env.OPENAI_API_KEY;
-
-    if (geminiKey && geminiKey.trim().length > 0) {
+    const gemStatus = geminiService.getStatus();
+    if (gemStatus.configured) {
       return {
         configured: true,
         provider: 'gemini',
-        message: 'Google Gemini AI assistant is connected and ready.',
+        message: gemStatus.message,
       };
     }
 
+    const openaiKey = process.env.OPENAI_API_KEY;
     if (openaiKey && openaiKey.trim().length > 0) {
       return {
         configured: true,
@@ -166,7 +166,7 @@ export const aiService = {
       configured: false,
       provider: null,
       message:
-        'AI Assistant requires an API key. To enable live AI generation, add GEMINI_API_KEY in server/.env.',
+        'AI Assistant requires an API key. To enable live AI generation, set GEMINI_API_KEY in your Render environment variables.',
     };
   },
 
@@ -174,48 +174,12 @@ export const aiService = {
    * Helper to execute AI LLM query with JSON output
    */
   async callAIJson<T>(systemPrompt: string, userPrompt: string): Promise<T> {
-    const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-    const openaiKey = process.env.OPENAI_API_KEY;
-
-    if (geminiKey) {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey.trim()}`;
-      const payload = {
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              {
-                text: `${systemPrompt}\n\nStrict requirement: Output valid JSON only, without markdown fences or extraneous text.\n\n${userPrompt}`,
-              },
-            ],
-          },
-        ],
-        generationConfig: {
-          response_mime_type: 'application/json',
-          temperature: 0.2,
-        },
-      };
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Gemini API error (${response.status}): ${errorText}`);
-      }
-
-      const json: any = await response.json();
-      const rawText = json.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!rawText) {
-        throw new Error('Gemini API returned an empty response.');
-      }
-
-      return JSON.parse(rawText) as T;
+    const gemStatus = geminiService.getStatus();
+    if (gemStatus.configured) {
+      return geminiService.generateJson<T>(systemPrompt, userPrompt);
     }
 
+    const openaiKey = process.env.OPENAI_API_KEY;
     if (openaiKey) {
       const url = 'https://api.openai.com/v1/chat/completions';
       const payload = {

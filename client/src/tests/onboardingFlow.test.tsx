@@ -88,7 +88,7 @@ describe('StudyOS — AI Onboarding Assistant & Workspace Generation Suite', () 
       if (path === '/ai/suggest-syllabus') {
         return { success: true, proposal: mockProposal };
       }
-      if (path === '/ai/generate-workspace') {
+      if (path === '/ai/generate-workspace' || path === '/ai/generate-study-workspace') {
         return {
           success: true,
           message: 'Workspace generated',
@@ -270,7 +270,7 @@ describe('StudyOS — AI Onboarding Assistant & Workspace Generation Suite', () 
     fireEvent.click(generateButtons[0]);
 
     await waitFor(() => {
-      expect(clientModule.apiRequest).toHaveBeenCalledWith('/ai/generate-workspace', expect.any(Object));
+      expect(clientModule.apiRequest).toHaveBeenCalledWith('/ai/generate-study-workspace', expect.any(Object));
     });
   });
 

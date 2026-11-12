@@ -113,6 +113,7 @@ export const OnboardingPage: React.FC = () => {
   const [proposalError, setProposalError] = useState<string | null>(null);
   const [isGeneratingWorkspace, setIsGeneratingWorkspace] = useState(false);
   const [generationStepText, setGenerationStepText] = useState('Analyzing learning goal...');
+  const [generationError, setGenerationError] = useState<string | null>(null);
 
   // 1. Draft Persistence: Restore on mount
   useEffect(() => {
@@ -434,26 +435,51 @@ export const OnboardingPage: React.FC = () => {
     }, 900);
 
     try {
+      setGenerationError(null);
       const activeGoal = customGoal ? `${learningGoal}: ${customGoal}` : learningGoal;
 
-      const res = await apiRequest<{ success: boolean; workspace: any }>('/ai/generate-workspace', {
-        method: 'POST',
-        body: JSON.stringify({
-          learningGoal: activeGoal,
-          educationLevel,
-          courseDegree,
-          academicYear,
-          dailyHours,
-          preferredSessionMinutes,
-          preferredTimeOfDay,
-          availableDays,
-          learningDepth,
-          targetDate,
-          examDate: hasExamDate && examDate ? examDate : undefined,
-          learningPreferences,
-          subjects: proposal.subjects,
-        }),
-      });
+      const finalSyllabusText =
+        syllabusMode === 'manual'
+          ? manualTopics
+          : syllabusMode !== 'ai_suggest'
+          ? syllabusText
+          : undefined;
+
+      const payload = {
+        learningGoal: activeGoal,
+        educationLevel,
+        course: courseDegree,
+        courseDegree,
+        semester: academicYear,
+        academicYear,
+        dailyHours,
+        preferredSessionMinutes,
+        preferredTimeOfDay,
+        availableDays,
+        learningDepth,
+        targetDate,
+        examDate: hasExamDate && examDate ? examDate : undefined,
+        learningPreferences,
+        subjects: proposal.subjects,
+        syllabus: finalSyllabusText,
+        currentKnowledge: knowledgeLevel,
+        knowledgeLevel,
+        knowledgeSummary,
+      };
+
+      let res: { success: boolean; workspace: any };
+      try {
+        res = await apiRequest<{ success: boolean; workspace: any }>('/ai/generate-study-workspace', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+      } catch (endpointErr: any) {
+        // Fallback to /ai/generate-workspace if needed
+        res = await apiRequest<{ success: boolean; workspace: any }>('/ai/generate-workspace', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+      }
 
       clearInterval(interval);
       localStorage.removeItem(STORAGE_DRAFT_KEY);
@@ -470,10 +496,9 @@ export const OnboardingPage: React.FC = () => {
     } catch (err: any) {
       clearInterval(interval);
       console.error('Workspace generation error:', err);
-      // Fallback: safeguard user so they are never locked out
-      localStorage.removeItem(STORAGE_DRAFT_KEY);
-      updateUser({ onboardingCompleted: true });
-      navigate('/app/dashboard');
+      setGenerationError(
+        err.message || 'Failed to generate academic workspace. Please verify your GEMINI_API_KEY on Render.'
+      );
     } finally {
       setIsGeneratingWorkspace(false);
     }
@@ -1545,6 +1570,35 @@ export const OnboardingPage: React.FC = () => {
 
             {!isLoadingProposal && proposal && (
               <>
+                {/* Generation Error Alert */}
+                {generationError && (
+                  <div className="p-4 rounded-xl border border-red-500/40 bg-red-500/10 text-xs text-red-600 dark:text-red-400 space-y-2">
+                    <div className="flex items-center gap-2 font-bold">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+                      <span>Workspace Generation Error</span>
+                    </div>
+                    <p className="leading-relaxed">{generationError}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      If deploying on Render, ensure <code>GEMINI_API_KEY</code> and <code>GEMINI_MODEL</code> are configured in your Render service environment variables.
+                    </p>
+                    <div className="flex gap-2 pt-1">
+                      <Button size="sm" onClick={() => handleGenerateWorkspace()}>
+                        Try Again
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          updateUser({ onboardingCompleted: true });
+                          navigate('/app/dashboard');
+                        }}
+                      >
+                        Continue to Dashboard
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Summary Banner with all 8 items */}
                 <Card className="p-6 border-primary-500/30 bg-gradient-to-r from-card to-primary-50/20 dark:to-primary-950/20">
                   <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">

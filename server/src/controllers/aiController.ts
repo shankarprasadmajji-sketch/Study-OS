@@ -4,6 +4,7 @@ import { isBefore, addDays } from 'date-fns';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { dataStore } from '../services/dataStore.js';
 import { aiService } from '../services/aiService.js';
+import { geminiService } from '../services/geminiService.js';
 import { videoService } from '../services/videoService.js';
 import { generateStudyPlan } from '../services/scheduler.js';
 import { isDateOnlyInPast, toDate } from '../utils/dateValidation.js';
@@ -69,15 +70,17 @@ export const aiController = {
   },
 
   /**
-   * Generate Complete Academic Workspace from Onboarding Confirmed Plan
+   * Generate Complete Academic Workspace with Google Gemini AI
+   * Endpoint: POST /api/v1/ai/generate-study-workspace
    */
-  async generateWorkspace(req: AuthenticatedRequest, res: Response): Promise<void> {
+  async generateStudyWorkspace(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       const userId = req.user!.userId;
       const {
-        learningGoal,
         educationLevel,
+        course,
         courseDegree,
+        semester,
         academicYear,
         dailyHours,
         preferredSessionMinutes,
@@ -87,29 +90,93 @@ export const aiController = {
         targetDate,
         examDate,
         learningPreferences,
+        learningGoal,
+        customGoal,
         subjects,
+        syllabus,
+        syllabusText,
+        currentKnowledge,
+        knowledgeLevel,
+        knowledgeSummary,
       } = req.body;
 
-      if (!Array.isArray(subjects) || subjects.length === 0) {
-        res.status(400).json({
-          success: false,
-          error: 'Please confirm at least one subject with syllabus units to generate your workspace.',
-        });
-        return;
-      }
-
-      // 1. Update user profile & preferences
+      // Extract & normalize parameters
       const hours = Number(dailyHours) || 3;
       const sessionMins = Number(preferredSessionMinutes) || 45;
       const depth = (learningDepth as 'briefly' | 'moderately' | 'deeply') || 'moderately';
       const timeOfDay = (preferredTimeOfDay as 'morning' | 'afternoon' | 'evening' | 'night') || 'morning';
       const days = Array.isArray(availableDays) && availableDays.length > 0 ? availableDays : [1, 2, 3, 4, 5, 6];
+      const finalCourse = courseDegree || course || 'General Curriculum';
+      const finalYear = academicYear || semester || 'Semester 1';
+      const finalKnowledge = (currentKnowledge || knowledgeLevel || 'beginner') as 'beginner' | 'intermediate' | 'advanced';
+      const activeGoal = customGoal ? (learningGoal ? `${learningGoal}: ${customGoal}` : customGoal) : (learningGoal || `Master ${finalCourse}`);
 
+      let workspaceSubjects: any[] = [];
+      let courseOverview = '';
+      let weeklyRecommendation: any = null;
+      let roadmap: any = null;
+
+      // Check if structured subjects with units were already provided by the client
+      const hasStructuredSubjects = Array.isArray(subjects) && subjects.length > 0 && subjects[0]?.units && subjects[0].units.length > 0;
+
+      if (hasStructuredSubjects) {
+        workspaceSubjects = subjects;
+        courseOverview = `${finalCourse} curriculum structured for ${depth} depth.`;
+      } else {
+        // If Gemini is configured, invoke Google Gemini via @google/genai SDK
+        const gemStatus = geminiService.getStatus();
+        if (gemStatus.configured) {
+          const aiResponse = await geminiService.generateStudyWorkspace({
+            educationLevel: educationLevel || 'Undergraduate',
+            course: finalCourse,
+            courseDegree: finalCourse,
+            semester: finalYear,
+            academicYear: finalYear,
+            subjects: Array.isArray(subjects) ? subjects : undefined,
+            syllabus: syllabus || syllabusText,
+            currentKnowledge: finalKnowledge,
+            knowledgeLevel: finalKnowledge,
+            knowledgeSummary,
+            dailyHours: hours,
+            targetDate,
+            examDate,
+            learningDepth: depth,
+            learningPreferences,
+            learningGoal: activeGoal,
+            preferredSessionMinutes: sessionMins,
+            preferredTimeOfDay: timeOfDay,
+            availableDays: days,
+          });
+
+          // Validate AI response before proceeding
+          if (!aiResponse || !Array.isArray(aiResponse.subjects) || aiResponse.subjects.length === 0) {
+            res.status(502).json({
+              success: false,
+              error: 'Gemini AI response validation failed: no valid subjects were returned.',
+            });
+            return;
+          }
+
+          workspaceSubjects = aiResponse.subjects;
+          courseOverview = aiResponse.courseOverview || '';
+          weeklyRecommendation = aiResponse.weeklyScheduleRecommendation || null;
+          roadmap = aiResponse.studyPlanRoadmap || null;
+        } else {
+          // If Gemini is not configured and no subjects were supplied
+          res.status(400).json({
+            success: false,
+            error: 'Gemini API key is not configured. Please set GEMINI_API_KEY in your Render backend environment variables to generate your workspace with Google Gemini.',
+          });
+          return;
+        }
+      }
+
+      // 1. Update user profile & preferences in MongoDB
       await dataStore.updateUser(userId, {
         educationLevel: educationLevel || 'Undergraduate',
-        courseDegree: courseDegree || '',
-        academicYear: academicYear || 'General',
-        learningGoal: learningGoal || '',
+        courseDegree: finalCourse,
+        academicYear: finalYear,
+        learningGoal: activeGoal,
         onboardingCompleted: true,
         preferences: {
           preferredSessionMinutes: sessionMins,
@@ -142,7 +209,7 @@ export const aiController = {
 
       await dataStore.replaceUserAvailability(userId, slots);
 
-      // 3. Create Subjects and Topics in MongoDB
+      // 3. Create Subjects, Topics, and Starter Notes in MongoDB
       const colors = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6'];
       const createdSubjects: any[] = [];
       const createdTopics: any[] = [];
@@ -150,8 +217,8 @@ export const aiController = {
 
       let topicPositionCounter = 1;
 
-      for (let sIdx = 0; sIdx < subjects.length; sIdx++) {
-        const s = subjects[sIdx];
+      for (let sIdx = 0; sIdx < workspaceSubjects.length; sIdx++) {
+        const s = workspaceSubjects[sIdx];
         const subjectDoc = await dataStore.createSubject({
           userId,
           name: s.name,
@@ -180,25 +247,40 @@ export const aiController = {
             });
             createdTopics.push(topicDoc);
 
-            // Generate comprehensive Starter Study Notes matching selected depth
+            // Generate or save starter notes matching depth
             try {
-              const starterNote = aiService.generateStarterNote({
-                topicTitle: t.title,
-                subjectName: subjectDoc.name,
-                unitTitle: unit.unitTitle,
-                learningDepth: depth,
-                learningObjectives: t.learningObjectives,
-                difficulty: t.difficulty,
-              });
+              let noteTitle = t.title;
+              let noteContent = '';
+              let noteTags = [subjectDoc.name, unit.unitTitle];
+
+              if (t.starterNote && t.starterNote.content) {
+                noteTitle = t.starterNote.title || t.title;
+                noteContent = t.starterNote.content;
+                if (Array.isArray(t.starterNote.tags)) {
+                  noteTags = [...noteTags, ...t.starterNote.tags];
+                }
+              } else {
+                const starterNote = aiService.generateStarterNote({
+                  topicTitle: t.title,
+                  subjectName: subjectDoc.name,
+                  unitTitle: unit.unitTitle,
+                  learningDepth: depth,
+                  learningObjectives: t.learningObjectives,
+                  difficulty: t.difficulty,
+                });
+                noteTitle = starterNote.title;
+                noteContent = starterNote.content;
+                noteTags = starterNote.tags;
+              }
 
               const noteDoc = await dataStore.createNote({
                 userId,
                 subjectId: subjectDoc._id,
                 topicId: topicDoc._id,
-                title: starterNote.title,
-                content: starterNote.content,
+                title: noteTitle,
+                content: noteContent,
                 isPinned: false,
-                tags: starterNote.tags,
+                tags: noteTags,
               });
               createdNotes.push(noteDoc);
             } catch {
@@ -245,11 +327,11 @@ export const aiController = {
       // 5. Create StudyPlan in database
       const planDoc = await dataStore.createStudyPlan({
         userId,
-        name: `${learningGoal || 'Personalized'} Study Plan`,
+        name: `${activeGoal} Study Plan`,
         startDate: tomorrow,
         endDate: sDate,
         status: 'active',
-        algorithmVersion: '2.0.0-ai',
+        algorithmVersion: '2.0.0-gemini',
         feasibility: planResult.feasibility,
       });
 
@@ -274,24 +356,34 @@ export const aiController = {
 
       res.status(201).json({
         success: true,
-        message: 'Personalized academic workspace generated successfully!',
+        message: 'Personalized study workspace generated successfully with Google Gemini!',
         workspace: {
+          courseOverview,
+          weeklyScheduleRecommendation: weeklyRecommendation,
+          studyPlanRoadmap: roadmap,
           subjectsCount: createdSubjects.length,
           topicsCount: createdTopics.length,
           sessionsCount: createdSessions.length,
           notesCount: createdNotes.length,
           planId: planDoc._id,
-          learningGoal,
+          learningGoal: activeGoal,
           feasibility: planResult.feasibility,
         },
       });
     } catch (err: any) {
-      console.error('[AIController] generateWorkspace error:', err);
+      console.error('[AIController] generateStudyWorkspace error:', err);
       res.status(500).json({
         success: false,
-        error: err.message || 'Failed to generate academic workspace.',
+        error: err.message || 'Failed to generate study workspace.',
       });
     }
+  },
+
+  /**
+   * Alias for backward compatibility
+   */
+  async generateWorkspace(req: AuthenticatedRequest, res: Response): Promise<void> {
+    return aiController.generateStudyWorkspace(req, res);
   },
   /**
    * Check AI configuration status

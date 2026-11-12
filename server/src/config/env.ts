@@ -27,6 +27,8 @@ export const config = {
   cookieSecure: process.env.COOKIE_SECURE === 'true',
   emailFrom: process.env.EMAIL_FROM || 'noreply@studyos.local',
   diagnosticKey: process.env.DIAGNOSTIC_KEY || 'studyos_developer_diagnostic_secret_2026',
+  geminiApiKey: (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '').trim(),
+  geminiModel: (process.env.GEMINI_MODEL || 'gemini-2.5-flash').trim(),
   smtp: {
     host: process.env.SMTP_HOST || '',
     port: parseInt(process.env.SMTP_PORT || '587', 10),

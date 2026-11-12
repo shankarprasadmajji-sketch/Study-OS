@@ -65,7 +65,12 @@ export function createApp(): Application {
           return callback(null, true);
         }
 
-        // Safe fallback: allow rather than crash
+        // In production, reject unverified origins
+        if (config.isProd) {
+          return callback(new Error(`Origin ${origin} is not allowed by CORS security policy.`));
+        }
+
+        // Safe fallback in non-production environments
         return callback(null, true);
       },
       credentials: true,

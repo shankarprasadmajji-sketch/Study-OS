@@ -368,5 +368,79 @@ describe('StudyOS AI-Powered Learning Assistant & Workspace Suite', () => {
       expect(meRes.body.user.onboardingCompleted).toBe(true);
       expect(meRes.body.user.educationLevel).toBe('School');
     });
+
+    it('POST /api/v1/ai/generate-study-workspace generates and persists complete academic workspace', async () => {
+      // 1. Unauthenticated request must be rejected
+      const unauthRes = await request(app)
+        .post('/api/v1/ai/generate-study-workspace')
+        .send({ educationLevel: 'Undergraduate', course: 'Computer Science' });
+      expect(unauthRes.status).toBe(401);
+
+      // 2. Clear error when no structured subjects and no Gemini key
+      const noKeyRes = await request(app)
+        .post('/api/v1/ai/generate-study-workspace')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({
+          educationLevel: 'Undergraduate',
+          course: 'Data Science',
+          semester: 'Semester 3',
+        });
+      // Should reject with clear message if no API key and no confirmed subjects
+      expect([400, 500]).toContain(noKeyRes.status);
+      expect(noKeyRes.body.success).toBe(false);
+      expect(noKeyRes.body.error).toBeDefined();
+
+      // 3. Successful workspace generation with confirmed subjects & depth
+      const propRes = await request(app)
+        .post('/api/v1/ai/suggest-syllabus')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({
+          learningGoal: 'Learn programming and technical skills',
+          subjectNames: ['Data Structures', 'Algorithms'],
+          educationLevel: 'Undergraduate',
+          academicYear: 'Year 2',
+          dailyHours: 3,
+        });
+      expect(propRes.status).toBe(200);
+
+      const studyRes = await request(app)
+        .post('/api/v1/ai/generate-study-workspace')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({
+          educationLevel: 'Undergraduate',
+          course: 'Computer Science',
+          courseDegree: 'B.Tech CS',
+          semester: 'Semester 4',
+          academicYear: 'Year 2',
+          dailyHours: 3,
+          learningDepth: 'deeply',
+          preferredSessionMinutes: 45,
+          preferredTimeOfDay: 'evening',
+          availableDays: [1, 2, 3, 4, 5],
+          subjects: propRes.body.proposal.subjects,
+        });
+
+      expect(studyRes.status).toBe(201);
+      expect(studyRes.body.success).toBe(true);
+      expect(studyRes.body.workspace.subjectsCount).toBeGreaterThanOrEqual(1);
+      expect(studyRes.body.workspace.topicsCount).toBeGreaterThanOrEqual(2);
+      expect(studyRes.body.workspace.sessionsCount).toBeGreaterThanOrEqual(1);
+      expect(studyRes.body.workspace.notesCount).toBeGreaterThanOrEqual(2);
+      expect(studyRes.body.workspace.planId).toBeDefined();
+
+      // 4. Verify notes were created in DB
+      const notesRes = await request(app)
+        .get('/api/v1/notes')
+        .set('Authorization', `Bearer ${authToken}`);
+      expect(notesRes.status).toBe(200);
+      expect(notesRes.body.notes.length).toBeGreaterThanOrEqual(2);
+
+      // 5. Verify sessions were scheduled in DB
+      const sessionsRes = await request(app)
+        .get('/api/v1/study-sessions')
+        .set('Authorization', `Bearer ${authToken}`);
+      expect(sessionsRes.status).toBe(200);
+      expect(sessionsRes.body.sessions.length).toBeGreaterThanOrEqual(1);
+    });
   });
 });
