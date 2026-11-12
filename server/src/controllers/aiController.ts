@@ -77,8 +77,13 @@ export const aiController = {
       const {
         learningGoal,
         educationLevel,
+        courseDegree,
         academicYear,
         dailyHours,
+        preferredSessionMinutes,
+        preferredTimeOfDay,
+        availableDays,
+        learningDepth,
         targetDate,
         examDate,
         learningPreferences,
@@ -95,35 +100,46 @@ export const aiController = {
 
       // 1. Update user profile & preferences
       const hours = Number(dailyHours) || 3;
+      const sessionMins = Number(preferredSessionMinutes) || 45;
+      const depth = (learningDepth as 'briefly' | 'moderately' | 'deeply') || 'moderately';
+      const timeOfDay = (preferredTimeOfDay as 'morning' | 'afternoon' | 'evening' | 'night') || 'morning';
+      const days = Array.isArray(availableDays) && availableDays.length > 0 ? availableDays : [1, 2, 3, 4, 5, 6];
+
       await dataStore.updateUser(userId, {
         educationLevel: educationLevel || 'Undergraduate',
+        courseDegree: courseDegree || '',
         academicYear: academicYear || 'General',
+        learningGoal: learningGoal || '',
         onboardingCompleted: true,
         preferences: {
-          preferredSessionMinutes: 45,
+          preferredSessionMinutes: sessionMins,
           breakMinutes: 10,
           dailyTargetHours: hours,
           reminderNotifications: true,
+          learningDepth: depth,
+          preferredTimeOfDay: timeOfDay,
+          availableDays: days,
+          learningStyles: Array.isArray(learningPreferences) ? learningPreferences : [],
         },
       });
 
-      // 2. Setup Availability for student based on daily study hours
-      const startHour = 9;
+      // 2. Setup Availability for student based on daily study hours and preferred time of day
+      let startHour = 9;
+      if (timeOfDay === 'afternoon') startHour = 14;
+      else if (timeOfDay === 'evening') startHour = 18;
+      else if (timeOfDay === 'night') startHour = 20;
+
       const endHour = Math.min(23, startHour + hours);
       const startPad = startHour.toString().padStart(2, '0') + ':00';
       const endPad = endHour.toString().padStart(2, '0') + ':00';
-      const slots = [1, 2, 3, 4, 5, 6].map((dayOfWeek) => ({
+
+      const slots = days.map((dayOfWeek: number) => ({
         dayOfWeek,
         startTime: startPad,
         endTime: endPad,
         enabled: true,
       }));
-      slots.push({
-        dayOfWeek: 0,
-        startTime: '10:00',
-        endTime: '12:00',
-        enabled: hours > 3,
-      });
+
       await dataStore.replaceUserAvailability(userId, slots);
 
       // 3. Create Subjects and Topics in MongoDB
@@ -158,22 +174,31 @@ export const aiController = {
               description: t.description || `${unit.unitTitle}: ${t.title}`,
               difficulty: t.difficulty || 'medium',
               importance: t.importance || 3,
-              estimatedMinutes: t.estimatedMinutes || 45,
+              estimatedMinutes: t.estimatedMinutes || sessionMins,
               position: topicPositionCounter++,
               status: 'not_started',
             });
             createdTopics.push(topicDoc);
 
-            // Create initial Notes if student prefers notes
+            // Generate comprehensive Starter Study Notes matching selected depth
             try {
+              const starterNote = aiService.generateStarterNote({
+                topicTitle: t.title,
+                subjectName: subjectDoc.name,
+                unitTitle: unit.unitTitle,
+                learningDepth: depth,
+                learningObjectives: t.learningObjectives,
+                difficulty: t.difficulty,
+              });
+
               const noteDoc = await dataStore.createNote({
                 userId,
                 subjectId: subjectDoc._id,
                 topicId: topicDoc._id,
-                title: `${t.title} — Key Concepts & Summary`,
-                content: `# ${t.title}\n\n**Subject:** ${subjectDoc.name}\n**Unit:** ${unit.unitTitle}\n\n## Overview\n${t.description || 'Master fundamental concepts and principles.'}\n\n## Learning Objectives\n${(t.learningObjectives || ['Understand core definitions', 'Apply concepts to practical problems']).map((o: string) => `- ${o}`).join('\n')}\n\n## Summary & Notes\n- Review definitions and key terminology.\n- Practice topic quiz and active recall flashcards.`,
+                title: starterNote.title,
+                content: starterNote.content,
                 isPinned: false,
-                tags: [subjectDoc.name, 'AI Workspace'],
+                tags: starterNote.tags,
               });
               createdNotes.push(noteDoc);
             } catch {
@@ -212,7 +237,7 @@ export const aiController = {
         availability: slots,
         startDate: tomorrow,
         endDate: sDate,
-        preferredSessionMinutes: 45,
+        preferredSessionMinutes: sessionMins,
         breakMinutes: 10,
         referenceDate: tomorrow,
       });

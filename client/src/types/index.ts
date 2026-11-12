@@ -3,6 +3,10 @@ export interface UserPreferences {
   breakMinutes: number;
   dailyTargetHours: number;
   reminderNotifications: boolean;
+  learningDepth?: 'briefly' | 'moderately' | 'deeply';
+  preferredTimeOfDay?: 'morning' | 'afternoon' | 'evening' | 'night';
+  availableDays?: number[];
+  learningStyles?: string[];
 }
 
 export interface User {
@@ -13,7 +17,9 @@ export interface User {
   googleId?: string;
   authProvider?: 'local' | 'google';
   educationLevel?: string;
+  courseDegree?: string;
   academicYear?: string;
+  learningGoal?: string;
   timezone: string;
   onboardingCompleted: boolean;
   theme: 'light' | 'dark' | 'system';

@@ -10,15 +10,20 @@ export interface SuggestSyllabusInputs {
   learningGoal: string;
   customGoal?: string;
   educationLevel: string;
+  courseDegree?: string;
   academicYear?: string;
   subjectNames?: string[];
   syllabusText?: string;
   knowledgeLevel: 'beginner' | 'intermediate' | 'advanced';
   knowledgeSummary?: string;
   dailyHours: number;
+  preferredSessionMinutes?: number;
+  availableDays?: number[];
+  preferredTimeOfDay?: 'morning' | 'afternoon' | 'evening' | 'night';
   daysOrWeeks?: string;
   targetDate?: string;
   examDate?: string;
+  learningDepth?: 'briefly' | 'moderately' | 'deeply';
   learningPreferences?: string[];
 }
 
@@ -886,6 +891,104 @@ Your role:
 - Be supportive, encouraging, and pedagogically rigorous.`;
 
     return this.callAIChat(systemPrompt, params.messages);
+  },
+
+  /**
+   * 4. Generate Starter Study Note for a Topic matching Learning Depth
+   */
+  generateStarterNote(params: {
+    topicTitle: string;
+    subjectName: string;
+    unitTitle: string;
+    learningDepth: 'briefly' | 'moderately' | 'deeply';
+    learningObjectives?: string[];
+    difficulty?: string;
+  }): { title: string; content: string; tags: string[] } {
+    const depth = params.learningDepth || 'moderately';
+    const objectives =
+      params.learningObjectives && params.learningObjectives.length > 0
+        ? params.learningObjectives
+        : [
+            `Understand fundamental definitions and core operations of ${params.topicTitle}`,
+            `Analyze practical implementation and problem-solving steps`,
+            `Master key concepts and avoid common exam mistakes`,
+          ];
+
+    let detailedExplanation = '';
+    let examples = '';
+    let questions = '';
+
+    if (depth === 'briefly') {
+      detailedExplanation = `### High-Yield Conceptual Overview\n${params.topicTitle} is a foundational pillar within ${params.subjectName}. At its core, it establishes the operational framework for problem resolution.\n\n- **Primary Purpose:** Efficient execution and logical clarity.\n- **Direct Application:** Used extensively across core modules to minimize overhead and structure predictable outcomes.`;
+      examples = `**Practical Scenario:**\nWhen processing real-world inputs in ${params.topicTitle}, data is verified against baseline invariants before proceeding with transformation.`;
+      questions = `1. What is the fundamental definition of ${params.topicTitle}?\n2. State two key properties or advantages of this concept.`;
+    } else if (depth === 'deeply') {
+      detailedExplanation = `### In-Depth Theoretical & Architectural Breakdown\n${params.topicTitle} provides an advanced architectural construct in ${params.subjectName}.\n\n#### 1. First-Principles Intuition\nBy deconstructing the problem into foundational components, ${params.topicTitle} enables deterministic behavior under varying workloads. Rather than relying on naive implementations, it enforces structured constraints.\n\n#### 2. Mechanics & State Transitions\n1. **Initialization:** Baseline configurations are instantiated with strict type bounds.\n2. **Execution Flow:** Intermediate transformations preserve invariance throughout the lifecycle.\n3. **Termination & Edge Cases:** Proper bounds checking prevents buffer overruns, race conditions, or logic divergence.\n\n#### 3. Complexity & Performance Trade-offs\n- **Time Complexity:** Optimized asymptotic bounds under standard runtime conditions.\n- **Space Overhead:** Controlled memory allocation with minimal auxiliary footprint.`;
+      examples = `**Comprehensive Case Study:**\nConsider an enterprise-grade workload requiring high throughput. By applying ${params.topicTitle}, operations avoid cascading failures through isolated validation stages and idempotent handlers.`;
+      questions = `1. Explain the underlying mechanics and edge-case behavior of ${params.topicTitle}.\n2. Compare and contrast alternative paradigms and prove why this approach is optimal.\n3. Analyze potential performance bottlenecks under heavy concurrency or edge distributions.`;
+    } else {
+      // Moderately (Balanced)
+      detailedExplanation = `### Core Conceptual Breakdown\n${params.topicTitle} balances foundational clarity with practical problem-solving capability in ${params.subjectName}.\n\n#### How It Works\n1. **Core Concept:** Sets up clear relationships between constituent variables and their behaviors.\n2. **Practical Process:** Executes standard workflows step-by-step to arrive at verified outcomes.\n3. **Key Considerations:** Avoids common pitfalls through proactive validation.`;
+      examples = `**Representative Example:**\nIn a standard scenario, ${params.topicTitle} takes verified parameters, evaluates required conditions, and returns a structured result.`;
+      questions = `1. Define ${params.topicTitle} and describe its main components.\n2. How is ${params.topicTitle} applied to solve practical problems in ${params.subjectName}?\n3. What is a common pitfall to avoid when working with this concept?`;
+    }
+
+    const content = `# ${params.topicTitle}
+
+> **Subject:** ${params.subjectName}  
+> **Unit:** ${params.unitTitle}  
+> **Academic Depth:** ${depth.toUpperCase()}  
+
+---
+
+## 1. Simple Definition & Overview
+**${params.topicTitle}** represents the essential conceptual framework within **${params.subjectName}** that governs structured analysis, problem solving, and system operations.
+
+---
+
+## 2. Detailed Explanation
+${detailedExplanation}
+
+---
+
+## 3. Important Concepts & Learning Objectives
+${objectives.map((obj) => `- **${obj}**`).join('\n')}
+
+---
+
+## 4. Practical Examples & Applications
+${examples}
+
+---
+
+## 5. Important Formulas & Core Rules
+- **Rule 1 (Correctness):** Invariants must hold true prior to and immediately following state changes.
+- **Rule 2 (Boundary Checking):** Always verify null, zero, or edge-case conditions before evaluating expressions.
+- **Fundamental Equation / Heuristic:** Output = f(Input, Constraints)
+
+---
+
+## 6. Key Points & High-Yield Takeaways
+- Essential building block for higher-level modules in ${params.subjectName}.
+- Directly tested in semester evaluations, practical exams, and technical assessments.
+- Consistent practice and active recall ensure long-term conceptual retention.
+
+---
+
+## 7. Short Summary
+In summary, **${params.topicTitle}** provides the critical mechanism for mastering ${params.unitTitle}. Understanding its definition, core rules, and implementation methods is essential for academic excellence.
+
+---
+
+## 8. Potential Exam & Review Questions
+${questions}
+`;
+
+    return {
+      title: `${params.topicTitle} — Notes`,
+      content: content.trim(),
+      tags: [params.subjectName, 'AI Starter Note', depth],
+    };
   },
 };
 

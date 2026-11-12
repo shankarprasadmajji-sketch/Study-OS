@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Sparkles,
@@ -24,6 +24,16 @@ import {
   ChevronRight,
   Loader2,
   RefreshCw,
+  Sun,
+  Sunset,
+  Moon,
+  Coffee,
+  Network,
+  Zap,
+  Target,
+  Flame,
+  Bookmark,
+  CheckSquare,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.js';
 import { apiRequest } from '../../api/client.js';
@@ -31,42 +41,64 @@ import { Button } from '../../components/ui/Button.js';
 import { Card } from '../../components/ui/Card.js';
 import { Badge } from '../../components/ui/Badge.js';
 
-type QuestionStep =
-  | 'goal'
-  | 'education'
-  | 'syllabus'
-  | 'knowledge'
-  | 'time'
-  | 'preferences'
-  | 'review';
+export type QuestionStep =
+  | 'education' // Q1
+  | 'goal' // Q2
+  | 'syllabus' // Q3
+  | 'knowledge' // Q4
+  | 'time' // Q5
+  | 'target' // Q6
+  | 'depth' // Q7
+  | 'preferences' // Q8
+  | 'review'; // Review & Generate
+
+const STORAGE_DRAFT_KEY = 'studyos_onboarding_draft';
 
 export const OnboardingPage: React.FC = () => {
   const { user, updateUser } = useAuth();
   const navigate = useNavigate();
 
-  // Current Question Step
-  const [currentStep, setCurrentStep] = useState<QuestionStep>('goal');
+  // Current Step
+  const [currentStep, setCurrentStep] = useState<QuestionStep>('education');
+  const [draftRestored, setDraftRestored] = useState<boolean>(false);
 
-  // Form State
-  const [learningGoal, setLearningGoal] = useState<string>('Programming and technical skills');
-  const [customGoal, setCustomGoal] = useState<string>('');
+  // Form State: Question 1 — Education Details
   const [educationLevel, setEducationLevel] = useState<string>(user?.educationLevel || 'Undergraduate');
+  const [courseDegree, setCourseDegree] = useState<string>(user?.courseDegree || '');
   const [academicYear, setAcademicYear] = useState<string>(user?.academicYear || 'Year 2');
+
+  // Form State: Question 2 — Learning Goals
+  const [learningGoal, setLearningGoal] = useState<string>('Learn programming and technical skills');
+  const [customGoal, setCustomGoal] = useState<string>('');
+
+  // Form State: Question 3 — Subjects & Syllabus
   const [subjectNames, setSubjectNames] = useState<string>('');
-  const [syllabusMode, setSyllabusMode] = useState<'ai_suggest' | 'paste_text' | 'upload_file'>('ai_suggest');
+  const [syllabusMode, setSyllabusMode] = useState<'ai_suggest' | 'paste_text' | 'upload_file' | 'manual'>('ai_suggest');
   const [syllabusText, setSyllabusText] = useState<string>('');
+  const [manualTopics, setManualTopics] = useState<string>('');
+
+  // Form State: Question 4 — Current Knowledge Level
   const [knowledgeLevel, setKnowledgeLevel] = useState<'beginner' | 'intermediate' | 'advanced'>('beginner');
   const [knowledgeSummary, setKnowledgeSummary] = useState<string>('');
-  const [dailyHours, setDailyHours] = useState<number>(3);
-  const [timeframePreset, setTimeframePreset] = useState<string>('30_days');
 
-  // Minimum date for target completion and exam date (today or future)
+  // Form State: Question 5 — Available Time & Windows
+  const [dailyHours, setDailyHours] = useState<number>(3);
+  const [preferredSessionMinutes, setPreferredSessionMinutes] = useState<number>(45);
+  const [availableDays, setAvailableDays] = useState<number[]>([1, 2, 3, 4, 5, 6]); // Mon-Sat
+  const [preferredTimeOfDay, setPreferredTimeOfDay] = useState<'morning' | 'afternoon' | 'evening' | 'night'>('morning');
+
+  // Form State: Question 6 — Completion Target & Exam Date
   const todayStr = new Date().toISOString().split('T')[0];
   const defaultTargetStr = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const [timeframePreset, setTimeframePreset] = useState<string>('1_month');
   const [targetDate, setTargetDate] = useState<string>(defaultTargetStr);
   const [hasExamDate, setHasExamDate] = useState<boolean>(false);
   const [examDate, setExamDate] = useState<string>('');
 
+  // Form State: Question 7 — Learning Depth
+  const [learningDepth, setLearningDepth] = useState<'briefly' | 'moderately' | 'deeply'>('moderately');
+
+  // Form State: Question 8 — Learning Style Preferences
   const [learningPreferences, setLearningPreferences] = useState<string[]>([
     'videos',
     'notes',
@@ -82,69 +114,203 @@ export const OnboardingPage: React.FC = () => {
   const [isGeneratingWorkspace, setIsGeneratingWorkspace] = useState(false);
   const [generationStepText, setGenerationStepText] = useState('Analyzing learning goal...');
 
-  // Preset options
+  // 1. Draft Persistence: Restore on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_DRAFT_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.educationLevel) setEducationLevel(parsed.educationLevel);
+        if (parsed.courseDegree) setCourseDegree(parsed.courseDegree);
+        if (parsed.academicYear) setAcademicYear(parsed.academicYear);
+        if (parsed.learningGoal) setLearningGoal(parsed.learningGoal);
+        if (parsed.customGoal) setCustomGoal(parsed.customGoal);
+        if (parsed.subjectNames) setSubjectNames(parsed.subjectNames);
+        if (parsed.syllabusMode) setSyllabusMode(parsed.syllabusMode);
+        if (parsed.syllabusText) setSyllabusText(parsed.syllabusText);
+        if (parsed.manualTopics) setManualTopics(parsed.manualTopics);
+        if (parsed.knowledgeLevel) setKnowledgeLevel(parsed.knowledgeLevel);
+        if (parsed.knowledgeSummary) setKnowledgeSummary(parsed.knowledgeSummary);
+        if (parsed.dailyHours) setDailyHours(parsed.dailyHours);
+        if (parsed.preferredSessionMinutes) setPreferredSessionMinutes(parsed.preferredSessionMinutes);
+        if (Array.isArray(parsed.availableDays)) setAvailableDays(parsed.availableDays);
+        if (parsed.preferredTimeOfDay) setPreferredTimeOfDay(parsed.preferredTimeOfDay);
+        if (parsed.timeframePreset) setTimeframePreset(parsed.timeframePreset);
+        if (parsed.targetDate) setTargetDate(parsed.targetDate);
+        if (typeof parsed.hasExamDate === 'boolean') setHasExamDate(parsed.hasExamDate);
+        if (parsed.examDate) setExamDate(parsed.examDate);
+        if (parsed.learningDepth) setLearningDepth(parsed.learningDepth);
+        if (Array.isArray(parsed.learningPreferences)) setLearningPreferences(parsed.learningPreferences);
+        if (parsed.currentStep) setCurrentStep(parsed.currentStep);
+        setDraftRestored(true);
+      }
+    } catch (e) {
+      console.warn('Failed to restore draft from localStorage:', e);
+    }
+  }, []);
+
+  // 2. Draft Persistence: Save on updates
+  useEffect(() => {
+    const draft = {
+      educationLevel,
+      courseDegree,
+      academicYear,
+      learningGoal,
+      customGoal,
+      subjectNames,
+      syllabusMode,
+      syllabusText,
+      manualTopics,
+      knowledgeLevel,
+      knowledgeSummary,
+      dailyHours,
+      preferredSessionMinutes,
+      availableDays,
+      preferredTimeOfDay,
+      timeframePreset,
+      targetDate,
+      hasExamDate,
+      examDate,
+      learningDepth,
+      learningPreferences,
+      currentStep,
+      updatedAt: new Date().toISOString(),
+    };
+    try {
+      localStorage.setItem(STORAGE_DRAFT_KEY, JSON.stringify(draft));
+    } catch (e) {
+      // quota or private browsing safeguard
+    }
+  }, [
+    educationLevel,
+    courseDegree,
+    academicYear,
+    learningGoal,
+    customGoal,
+    subjectNames,
+    syllabusMode,
+    syllabusText,
+    manualTopics,
+    knowledgeLevel,
+    knowledgeSummary,
+    dailyHours,
+    preferredSessionMinutes,
+    availableDays,
+    preferredTimeOfDay,
+    timeframePreset,
+    targetDate,
+    hasExamDate,
+    examDate,
+    learningDepth,
+    learningPreferences,
+    currentStep,
+  ]);
+
+  const clearDraft = () => {
+    localStorage.removeItem(STORAGE_DRAFT_KEY);
+    setCurrentStep('education');
+    setEducationLevel('Undergraduate');
+    setCourseDegree('');
+    setAcademicYear('Year 2');
+    setLearningGoal('Learn programming and technical skills');
+    setCustomGoal('');
+    setSubjectNames('');
+    setSyllabusMode('ai_suggest');
+    setSyllabusText('');
+    setManualTopics('');
+    setKnowledgeLevel('beginner');
+    setKnowledgeSummary('');
+    setDailyHours(3);
+    setPreferredSessionMinutes(45);
+    setAvailableDays([1, 2, 3, 4, 5, 6]);
+    setPreferredTimeOfDay('morning');
+    setTimeframePreset('1_month');
+    setTargetDate(defaultTargetStr);
+    setHasExamDate(false);
+    setExamDate('');
+    setLearningDepth('moderately');
+    setLearningPreferences(['videos', 'notes', 'flashcards', 'examples', 'quizzes']);
+    setProposal(null);
+    setDraftRestored(false);
+  };
+
+  // Option Lists
+  const educationOptions = [
+    { id: 'School student', title: 'School Student', desc: 'Middle School / High School' },
+    { id: 'Undergraduate', title: 'Undergraduate', desc: 'B.Tech, B.S., B.A., B.Com, B.Sc' },
+    { id: 'Postgraduate', title: 'Postgraduate', desc: 'M.Tech, M.S., M.A., MBA, PhD' },
+    { id: 'Self-learning', title: 'Self-Learning', desc: 'Independent learner / Professional' },
+    { id: 'Other', title: 'Other', desc: 'Bootcamp / Diploma / Certificate' },
+  ];
+
   const goalOptions = [
     {
-      id: 'Programming and technical skills',
-      title: 'Programming & Technical Skills',
-      desc: 'Python, Web Development, Data Science, Algorithms',
-      icon: Code,
-      preset: 'Learn Python from zero in 30 days',
-    },
-    {
-      id: 'College subjects',
-      title: 'College Subjects',
-      desc: 'Computer Architecture, DBMS, Calculus, Discrete Math',
+      id: 'Prepare for college examinations',
+      title: 'Prepare for College Examinations',
+      desc: 'Semester exams, midterms, lab practicals & viva revision',
       icon: GraduationCap,
-      preset: 'Operating Systems & Data Structures',
+      preset: 'Data Structures & Algorithms Semester Exam',
     },
     {
-      id: 'School subjects',
-      title: 'School Subjects',
-      desc: 'Physics, Chemistry, Mathematics, Biology',
+      id: 'Learn a subject from the beginning',
+      title: 'Learn a Subject from Beginning',
+      desc: 'Build conceptual clarity from fundamentals to mastery',
       icon: BookOpen,
-      preset: '10th / 12th Grade Science & Mathematics',
+      preset: 'Complete Foundations of Calculus & Linear Algebra',
     },
     {
-      id: 'Competitive exam preparation',
-      title: 'Competitive Exam Preparation',
-      desc: 'JEE, GATE, GRE, SAT, Quantitative & Reasoning',
+      id: 'Complete my entire course or semester syllabus',
+      title: 'Complete Course / Semester Syllabus',
+      desc: 'Systematically finish every syllabus unit before deadlines',
+      icon: Layers,
+      preset: 'Semester 4 Computer Science Full Syllabus',
+    },
+    {
+      id: 'Prepare for competitive exams (GATE, GRE, JEE, etc.)',
+      title: 'Prepare for Competitive Exams',
+      desc: 'High-yield problem solving, mock test pacing & active recall',
       icon: Trophy,
-      preset: 'Aptitude & Logical Reasoning Masterclass',
+      preset: 'GATE Computer Science Core Subjects',
     },
     {
-      id: 'General skills',
-      title: 'General Skills & Productivity',
-      desc: 'Problem Solving, Financial Literacy, AI Engineering',
+      id: 'Learn programming and technical skills',
+      title: 'Learn Programming & Tech Skills',
+      desc: 'Python, Web Development, Full-Stack, Machine Learning',
+      icon: Code,
+      preset: 'Master Python & Backend Engineering from Zero',
+    },
+    {
+      id: 'Prepare for technical interviews or placement',
+      title: 'Prepare for Technical Interviews',
+      desc: 'Data structures, system design, algorithm interview problems',
+      icon: Brain,
+      preset: 'Software Engineering Coding Interview Preparation',
+    },
+    {
+      id: 'Master a specific skill or topic',
+      title: 'Master a Specific Skill or Topic',
+      desc: 'Deep-dive into a focused domain or research topic',
       icon: Compass,
-      preset: 'Practical Problem Solving & Applied AI',
+      preset: 'Deep Learning & Neural Network Architectures',
     },
     {
-      id: 'Custom learning goal',
+      id: 'Custom goal',
       title: 'Custom Learning Goal',
-      desc: 'Describe any specific topic or deadline you want to conquer',
+      desc: 'Describe your own customized academic journey or target',
       icon: Sparkles,
       preset: '',
     },
   ];
 
-  const educationOptions = [
-    { id: 'School', title: 'School', desc: 'Middle / High School', sublabel: 'Grade' },
-    { id: 'Undergraduate', title: 'Undergraduate', desc: 'Bachelor Degree', sublabel: 'Year / Semester' },
-    { id: 'Postgraduate', title: 'Postgraduate', desc: 'Master / PhD Degree', sublabel: 'Year' },
-    { id: 'Self-learning', title: 'Self-Learning', desc: 'Independent learner / Professional', sublabel: '' },
-    { id: 'Other', title: 'Other', desc: 'Certificate / Bootcamp', sublabel: '' },
-  ];
-
   const preferenceOptions = [
-    { id: 'videos', title: 'Video Lessons', desc: 'Curated educational video lectures & walkthroughs', icon: Video },
-    { id: 'notes', title: 'Simple Explanations & Notes', desc: 'Key points, definitions, formulas & summaries', icon: FileText },
-    { id: 'flashcards', title: 'Flashcards', desc: 'Active recall Q&A flip cards with confidence ratings', icon: Layers },
-    { id: 'examples', title: 'Practical Examples', desc: 'Real-world intuition, code & step-by-step solutions', icon: Lightbulb },
-    { id: 'quizzes', title: 'Quizzes & Tests', desc: 'Conceptual MCQs with instant scoring & explanations', icon: HelpCircle },
+    { id: 'videos', title: 'Video Lessons', desc: 'Curated high-yield video lectures and walkthroughs', icon: Video },
+    { id: 'notes', title: 'Simple Explanations and Notes', desc: 'Clear definitions, formulas, derivations and structured notes', icon: FileText },
+    { id: 'examples', title: 'Practical Examples and Code', desc: 'Real-world intuition, code snippets and worked problems', icon: Lightbulb },
+    { id: 'flashcards', title: 'Flashcards and Active Recall', desc: 'Spaced repetition flashcards with confidence tracking', icon: Layers },
+    { id: 'quizzes', title: 'Quizzes and Practice Tests', desc: 'Concept check MCQs with instant scoring and explanations', icon: HelpCircle },
+    { id: 'flowcharts', title: 'Flowcharts and Visual Diagrams', desc: 'Visual architecture diagrams and mental roadmaps', icon: Network },
   ];
 
-  // Helper to toggle multi-select preferences
   const togglePreference = (id: string) => {
     if (learningPreferences.includes(id)) {
       if (learningPreferences.length > 1) {
@@ -156,23 +322,35 @@ export const OnboardingPage: React.FC = () => {
   };
 
   const selectAllPreferences = () => {
-    setLearningPreferences(['videos', 'notes', 'flashcards', 'examples', 'quizzes']);
+    setLearningPreferences(['videos', 'notes', 'examples', 'flashcards', 'quizzes', 'flowcharts']);
   };
 
-  // Preset timeframes
+  // Day toggle helper
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const toggleDay = (dayIdx: number) => {
+    if (availableDays.includes(dayIdx)) {
+      if (availableDays.length > 1) {
+        setAvailableDays(availableDays.filter((d) => d !== dayIdx));
+      }
+    } else {
+      setAvailableDays([...availableDays, dayIdx].sort());
+    }
+  };
+
+  // Timeframe presets
   const handleTimeframePreset = (preset: string) => {
     setTimeframePreset(preset);
     const now = new Date();
     let days = 30;
-    if (preset === '14_days') days = 14;
-    if (preset === '30_days') days = 30;
-    if (preset === '60_days') days = 60;
-    if (preset === '90_days') days = 90;
+    if (preset === '1_week') days = 7;
+    else if (preset === '2_weeks') days = 14;
+    else if (preset === '1_month') days = 30;
+    else if (preset === '2_months') days = 60;
     const future = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
     setTargetDate(future.toISOString().split('T')[0]);
   };
 
-  // Handle file upload for syllabus
+  // Handle file upload
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -197,16 +375,23 @@ export const OnboardingPage: React.FC = () => {
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
 
+    const finalSyllabusText =
+      syllabusMode === 'manual'
+        ? manualTopics
+        : syllabusMode !== 'ai_suggest'
+        ? syllabusText
+        : undefined;
+
     try {
       const res = await apiRequest<{ success: boolean; proposal: any }>('/ai/suggest-syllabus', {
         method: 'POST',
         body: JSON.stringify({
-          learningGoal,
+          learningGoal: customGoal ? `${learningGoal}: ${customGoal}` : learningGoal,
           customGoal,
           educationLevel,
-          academicYear,
+          academicYear: courseDegree ? `${courseDegree} (${academicYear})` : academicYear,
           subjectNames: subjs,
-          syllabusText: syllabusMode !== 'ai_suggest' ? syllabusText : undefined,
+          syllabusText: finalSyllabusText,
           knowledgeLevel,
           knowledgeSummary,
           dailyHours,
@@ -234,11 +419,11 @@ export const OnboardingPage: React.FC = () => {
 
     setIsGeneratingWorkspace(true);
     const steps = [
-      'Analyzing learning goal & pedagogical structure...',
-      'Deconstructing subjects into units & bite-sized learning topics...',
-      'Calculating priorities, difficulty ratings, and exam urgency...',
-      'Scheduling non-overlapping timetable and daily study sessions...',
-      'Creating dedicated student notes, flashcards, and quizzes...',
+      'Analyzing your academic profile and learning depth...',
+      'Deconstructing subjects into units and bite-sized learning topics...',
+      'Synthesizing starter study notes with key concepts & practical examples...',
+      'Scheduling non-overlapping timetable sessions for your preferred study window...',
+      'Setting up interactive topic workspaces with flashcards & quizzes...',
       'Finalizing your personalized StudyOS workspace...',
     ];
 
@@ -249,13 +434,20 @@ export const OnboardingPage: React.FC = () => {
     }, 900);
 
     try {
+      const activeGoal = customGoal ? `${learningGoal}: ${customGoal}` : learningGoal;
+
       const res = await apiRequest<{ success: boolean; workspace: any }>('/ai/generate-workspace', {
         method: 'POST',
         body: JSON.stringify({
-          learningGoal: customGoal ? `${learningGoal}: ${customGoal}` : learningGoal,
+          learningGoal: activeGoal,
           educationLevel,
+          courseDegree,
           academicYear,
           dailyHours,
+          preferredSessionMinutes,
+          preferredTimeOfDay,
+          availableDays,
+          learningDepth,
           targetDate,
           examDate: hasExamDate && examDate ? examDate : undefined,
           learningPreferences,
@@ -264,9 +456,13 @@ export const OnboardingPage: React.FC = () => {
       });
 
       clearInterval(interval);
+      localStorage.removeItem(STORAGE_DRAFT_KEY);
+
       updateUser({
         educationLevel,
+        courseDegree,
         academicYear,
+        learningGoal: activeGoal,
         onboardingCompleted: true,
       });
 
@@ -274,7 +470,8 @@ export const OnboardingPage: React.FC = () => {
     } catch (err: any) {
       clearInterval(interval);
       console.error('Workspace generation error:', err);
-      // Fallback: mark onboarding completed and navigate so user is never locked out
+      // Fallback: safeguard user so they are never locked out
+      localStorage.removeItem(STORAGE_DRAFT_KEY);
       updateUser({ onboardingCompleted: true });
       navigate('/app/dashboard');
     } finally {
@@ -282,16 +479,19 @@ export const OnboardingPage: React.FC = () => {
     }
   };
 
-  // Stepper helper
+  // 8-Question Stepper Navigation
   const questionSequence: QuestionStep[] = [
-    'goal',
-    'education',
-    'syllabus',
-    'knowledge',
-    'time',
-    'preferences',
-    'review',
+    'education', // Q1
+    'goal', // Q2
+    'syllabus', // Q3
+    'knowledge', // Q4
+    'time', // Q5
+    'target', // Q6
+    'depth', // Q7
+    'preferences', // Q8
+    'review', // Step 9
   ];
+
   const currentStepIndex = questionSequence.indexOf(currentStep);
 
   const goToNextStep = () => {
@@ -312,12 +512,45 @@ export const OnboardingPage: React.FC = () => {
     }
   };
 
+  // Calculate real-time feasibility for the review screen
+  const calculateFeasibility = () => {
+    const now = new Date();
+    const target = new Date(targetDate);
+    const diffDays = Math.max(1, Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+    const activeDaysPerWeek = availableDays.length || 6;
+    const effectiveDays = Math.max(1, Math.round((diffDays * activeDaysPerWeek) / 7));
+    const totalAvailableHours = effectiveDays * dailyHours;
+
+    const estimatedHours = proposal?.estimatedTotalHours || 15;
+    const ratio = totalAvailableHours / estimatedHours;
+
+    let status: 'feasible' | 'tight' | 'unrealistic' = 'feasible';
+    let explanation = '';
+    let suggestion = '';
+
+    if (ratio >= 1.25) {
+      status = 'feasible';
+      explanation = `Excellent! You have ~${totalAvailableHours} available study hours for ~${estimatedHours} estimated curriculum hours. Your plan has comfortable margin for practice.`;
+    } else if (ratio >= 0.85) {
+      status = 'tight';
+      explanation = `Your schedule is tight: ~${totalAvailableHours} available hours vs ~${estimatedHours} estimated curriculum hours. Regular attendance is recommended.`;
+      suggestion = `Consider increasing daily study by 30-45 minutes to build revision buffers.`;
+    } else {
+      status = 'unrealistic';
+      const neededDaily = (estimatedHours / effectiveDays).toFixed(1);
+      explanation = `Demanding timeframe: ~${estimatedHours} hours of curriculum planned over ${effectiveDays} study days with only ~${totalAvailableHours} hours scheduled.`;
+      suggestion = `To cover all topics comfortably, adjust your daily study to ~${neededDaily} hours/day or extend your target deadline by 1-2 weeks.`;
+    }
+
+    return { status, totalAvailableHours, estimatedHours, effectiveDays, explanation, suggestion };
+  };
+
   return (
     <div className="min-h-screen bg-background py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto">
-        {/* Main Header with Required Prompts */}
+        {/* Main Header with Exact Prompts */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary-50 dark:bg-primary-950/60 border border-primary-200 dark:border-primary-800/50 mb-3 shadow-xs">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-primary-50 dark:bg-primary-950/60 border border-primary-200 dark:border-primary-800/50 mb-3 shadow-xs">
             <Sparkles className="w-4 h-4 text-primary-600 dark:text-primary-400" />
             <span className="text-xs font-semibold text-primary-900 dark:text-primary-300">
               StudyOS AI Learning Assistant
@@ -325,46 +558,153 @@ export const OnboardingPage: React.FC = () => {
           </div>
 
           <h1 className="text-3xl sm:text-4xl font-extrabold text-foreground tracking-tight">
-            What would you like to learn today?
+            Let's build your personalized learning space.
           </h1>
           <p className="text-sm text-muted-foreground mt-2 max-w-xl mx-auto">
-            Tell us your learning goal. StudyOS will build a personalized learning experience for you.
+            Tell us what you want to learn. StudyOS will organize your subjects, timetable, study plan and notes for you.
           </p>
 
-          {/* Conversational Progress Stepper */}
+          {/* Draft indicator */}
+          {draftRestored && currentStep !== 'review' && (
+            <div className="flex items-center justify-center gap-2 mt-3 text-xs text-muted-foreground">
+              <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Draft restored from your last visit</span>
+              <button
+                type="button"
+                onClick={clearDraft}
+                className="text-primary-600 hover:underline font-medium ml-1 cursor-pointer"
+              >
+                Reset
+              </button>
+            </div>
+          )}
+
+          {/* Conversational Progress Stepper (8 Questions) */}
           {currentStep !== 'review' && (
             <div className="flex items-center justify-center gap-1.5 mt-6">
-              {questionSequence.slice(0, 6).map((stepKey, idx) => (
-                <div
+              {questionSequence.slice(0, 8).map((stepKey, idx) => (
+                <button
                   key={stepKey}
-                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                  type="button"
+                  onClick={() => setCurrentStep(stepKey)}
+                  title={`Go to Question ${idx + 1}`}
+                  className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${
                     idx === currentStepIndex
                       ? 'w-10 bg-primary-600'
                       : idx < currentStepIndex
-                      ? 'w-4 bg-emerald-500'
-                      : 'w-4 bg-muted-foreground/20'
+                      ? 'w-4 bg-emerald-500 hover:bg-emerald-600'
+                      : 'w-4 bg-muted-foreground/20 hover:bg-muted-foreground/40'
                   }`}
                 />
               ))}
-              <span className="text-[11px] font-mono text-muted-foreground ml-2">
-                Question {currentStepIndex + 1} of 6
+              <span className="text-xs font-mono font-semibold text-muted-foreground ml-2">
+                Question {currentStepIndex + 1} of 8
               </span>
             </div>
           )}
         </div>
 
         {/* ============================================================== */}
-        {/* QUESTION 1 — LEARNING GOAL */}
+        {/* QUESTION 1 — EDUCATION DETAILS */}
         {/* ============================================================== */}
-        {currentStep === 'goal' && (
+        {currentStep === 'education' && (
           <Card className="p-6 sm:p-8 space-y-6 animate-in fade-in duration-200">
             <div>
               <span className="text-xs font-bold uppercase tracking-wider text-primary-600 dark:text-primary-400">
                 Question 1
               </span>
-              <h2 className="text-xl font-bold text-foreground mt-1">What do you want to learn?</h2>
+              <h2 className="text-xl font-bold text-foreground mt-1">Education Details</h2>
               <p className="text-xs text-muted-foreground mt-1">
-                Select your focus area, or type your exact topic below.
+                Tell us about your current academic standing so the AI tailors its pedagogical tone.
+              </p>
+            </div>
+
+            {/* What are you currently studying? */}
+            <div className="space-y-3">
+              <label className="block text-xs font-semibold text-foreground">
+                What are you currently studying?
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                {educationOptions.map((opt) => {
+                  const isSelected = educationLevel === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setEducationLevel(opt.id)}
+                      className={`flex items-start gap-3 p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+                        isSelected
+                          ? 'border-primary-600 bg-primary-50/70 dark:bg-primary-950/40 ring-1 ring-primary-500'
+                          : 'border-border bg-card hover:bg-muted/60'
+                      }`}
+                    >
+                      <GraduationCap
+                        className={`w-5 h-5 shrink-0 mt-0.5 ${
+                          isSelected ? 'text-primary-600' : 'text-muted-foreground'
+                        }`}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-foreground">{opt.title}</span>
+                          {isSelected && <Check className="w-3.5 h-3.5 text-primary-600" />}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">{opt.desc}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Course, Degree or Stream */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1">
+                  Course, degree or stream
+                </label>
+                <input
+                  type="text"
+                  value={courseDegree}
+                  onChange={(e) => setCourseDegree(e.target.value)}
+                  placeholder="e.g. Computer Science, Mechanical Engineering, Commerce, Pre-Med"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-xs focus:ring-2 focus:ring-primary-500 focus:outline-none transition-all shadow-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1">
+                  Current year, grade or semester
+                </label>
+                <input
+                  type="text"
+                  value={academicYear}
+                  onChange={(e) => setAcademicYear(e.target.value)}
+                  placeholder="e.g. Year 2, Semester 4, 10th Grade"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-xs focus:ring-2 focus:ring-primary-500 focus:outline-none transition-all shadow-xs"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-4">
+              <Button onClick={goToNextStep} rightIcon={<ArrowRight className="w-4 h-4" />}>
+                Continue
+              </Button>
+            </div>
+          </Card>
+        )}
+
+        {/* ============================================================== */}
+        {/* QUESTION 2 — LEARNING GOALS */}
+        {/* ============================================================== */}
+        {currentStep === 'goal' && (
+          <Card className="p-6 sm:p-8 space-y-6 animate-in fade-in duration-200">
+            <div>
+              <span className="text-xs font-bold uppercase tracking-wider text-primary-600 dark:text-primary-400">
+                Question 2
+              </span>
+              <h2 className="text-xl font-bold text-foreground mt-1">What would you like to achieve?</h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Select your primary learning objective or type a custom goal.
               </p>
             </div>
 
@@ -414,97 +754,16 @@ export const OnboardingPage: React.FC = () => {
             {/* Custom Learning Goal Input */}
             <div className="pt-2">
               <label className="block text-xs font-semibold text-foreground mb-1.5">
-                Describe your exact goal (or customize below)
+                Describe your exact goal or target (Optional or Custom)
               </label>
               <input
                 type="text"
                 value={customGoal}
                 onChange={(e) => setCustomGoal(e.target.value)}
-                placeholder="e.g. Learn Python from zero in 30 days, or Class 12 Board Exam Physics"
+                placeholder="e.g. Master Python from zero in 30 days, or Score 90%+ in Semester 4 OS & DBMS"
                 className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-xs focus:ring-2 focus:ring-primary-500 focus:outline-none transition-all shadow-xs"
               />
-              <p className="text-[11px] text-muted-foreground mt-1">
-                You can specify any custom topic, skill, exam, or timeframe.
-              </p>
             </div>
-
-            <div className="flex justify-end pt-4">
-              <Button
-                onClick={goToNextStep}
-                rightIcon={<ArrowRight className="w-4 h-4" />}
-                className="w-full sm:w-auto"
-              >
-                Continue
-              </Button>
-            </div>
-          </Card>
-        )}
-
-        {/* ============================================================== */}
-        {/* QUESTION 2 — EDUCATION LEVEL */}
-        {/* ============================================================== */}
-        {currentStep === 'education' && (
-          <Card className="p-6 sm:p-8 space-y-6 animate-in fade-in duration-200">
-            <div>
-              <span className="text-xs font-bold uppercase tracking-wider text-primary-600 dark:text-primary-400">
-                Question 2
-              </span>
-              <h2 className="text-xl font-bold text-foreground mt-1">What is your current education level?</h2>
-              <p className="text-xs text-muted-foreground mt-1">
-                Helps the AI match the depth and pedagogical tone to your academic background.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {educationOptions.map((opt) => {
-                const isSelected = educationLevel === opt.id;
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => setEducationLevel(opt.id)}
-                    className={`flex items-start gap-3.5 p-4 rounded-xl border text-left transition-all duration-150 cursor-pointer ${
-                      isSelected
-                        ? 'border-primary-600 bg-primary-50/70 dark:bg-primary-950/40 ring-1 ring-primary-500'
-                        : 'border-border bg-card hover:bg-muted/60'
-                    }`}
-                  >
-                    <div
-                      className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                        isSelected
-                          ? 'bg-primary-600 text-white'
-                          : 'bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      <GraduationCap className="w-5 h-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-foreground">{opt.title}</span>
-                        {isSelected && <Check className="w-4 h-4 text-primary-600" />}
-                      </div>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">{opt.desc}</p>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Academic Year/Grade when relevant */}
-            {['School', 'Undergraduate', 'Postgraduate'].includes(educationLevel) && (
-              <div className="pt-2 animate-in fade-in duration-150">
-                <label className="block text-xs font-semibold text-foreground mb-1.5">
-                  Current Grade, Year or Semester
-                </label>
-                <input
-                  type="text"
-                  value={academicYear}
-                  onChange={(e) => setAcademicYear(e.target.value)}
-                  placeholder="e.g. Year 2, Semester 4, or 10th Grade"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-xs focus:ring-2 focus:ring-primary-500 focus:outline-none transition-all shadow-xs"
-                />
-              </div>
-            )}
 
             <div className="flex items-center justify-between pt-4">
               <Button variant="ghost" onClick={goToPrevStep} leftIcon={<ArrowLeft className="w-4 h-4" />}>
@@ -526,36 +785,36 @@ export const OnboardingPage: React.FC = () => {
               <span className="text-xs font-bold uppercase tracking-wider text-primary-600 dark:text-primary-400">
                 Question 3
               </span>
-              <h2 className="text-xl font-bold text-foreground mt-1">Subjects & Syllabus Details</h2>
+              <h2 className="text-xl font-bold text-foreground mt-1">Subjects & Syllabus Topics</h2>
               <p className="text-xs text-muted-foreground mt-1">
-                Tell us which subjects you want to cover, or let StudyOS design the complete syllabus.
+                Enter your subjects and tell us how you want to load your syllabus.
               </p>
             </div>
 
             {/* Subject names input */}
             <div>
               <label className="block text-xs font-semibold text-foreground mb-1">
-                Which subjects do you want to study? (Optional, comma-separated)
+                Enter your subjects (comma-separated or list)
               </label>
               <input
                 type="text"
                 value={subjectNames}
                 onChange={(e) => setSubjectNames(e.target.value)}
-                placeholder="e.g. Python Programming, Data Structures, Algorithms"
+                placeholder="e.g. Python Programming, Operating Systems, Database Systems"
                 className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-xs focus:ring-2 focus:ring-primary-500 focus:outline-none transition-all shadow-xs"
               />
               <p className="text-[11px] text-muted-foreground mt-1">
-                Leave empty to let AI automatically suggest subjects based on your learning goal.
+                Leave empty to let StudyOS automatically propose subjects based on your learning goal.
               </p>
             </div>
 
-            {/* Syllabus Source Options */}
+            {/* Multiple convenient ways for syllabus */}
             <div className="space-y-3 pt-2">
               <label className="block text-xs font-semibold text-foreground">
-                Do you have a syllabus document?
+                How would you like to provide your syllabus?
               </label>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                 <button
                   type="button"
                   onClick={() => setSyllabusMode('ai_suggest')}
@@ -566,9 +825,9 @@ export const OnboardingPage: React.FC = () => {
                   }`}
                 >
                   <Sparkles className="w-4 h-4 text-primary-600 mb-1" />
-                  <span className="block text-xs font-bold text-foreground">Let AI Create Syllabus</span>
+                  <span className="block text-xs font-bold text-foreground">Ask AI to Suggest</span>
                   <span className="block text-[11px] text-muted-foreground mt-0.5">
-                    Recommended for self-learning
+                    Standard academic curricula
                   </span>
                 </button>
 
@@ -584,7 +843,7 @@ export const OnboardingPage: React.FC = () => {
                   <FileText className="w-4 h-4 text-sky-600 mb-1" />
                   <span className="block text-xs font-bold text-foreground">Paste Syllabus Text</span>
                   <span className="block text-[11px] text-muted-foreground mt-0.5">
-                    Copy units and chapters
+                    Copy units & chapters
                   </span>
                 </button>
 
@@ -600,7 +859,23 @@ export const OnboardingPage: React.FC = () => {
                   <Upload className="w-4 h-4 text-emerald-600 mb-1" />
                   <span className="block text-xs font-bold text-foreground">Upload Document</span>
                   <span className="block text-[11px] text-muted-foreground mt-0.5">
-                    .txt, .md, or notes file
+                    .txt, .md, notes file
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSyllabusMode('manual')}
+                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+                    syllabusMode === 'manual'
+                      ? 'border-primary-600 bg-primary-50/70 dark:bg-primary-950/40 ring-1 ring-primary-500'
+                      : 'border-border bg-card hover:bg-muted/60'
+                  }`}
+                >
+                  <CheckSquare className="w-4 h-4 text-amber-600 mb-1" />
+                  <span className="block text-xs font-bold text-foreground">Enter Manually</span>
+                  <span className="block text-[11px] text-muted-foreground mt-0.5">
+                    Type topics list
                   </span>
                 </button>
               </div>
@@ -610,13 +885,13 @@ export const OnboardingPage: React.FC = () => {
             {syllabusMode === 'paste_text' && (
               <div className="pt-2 animate-in fade-in duration-150">
                 <label className="block text-xs font-semibold text-foreground mb-1">
-                  Paste Your Syllabus Content
+                  Paste Your Syllabus Text
                 </label>
                 <textarea
                   rows={4}
                   value={syllabusText}
                   onChange={(e) => setSyllabusText(e.target.value)}
-                  placeholder="Paste units, chapters, or topic lists here. AI will extract and structure them."
+                  placeholder="Paste units, chapters, or syllabus text here. AI will extract and structure them."
                   className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-xs focus:ring-2 focus:ring-primary-500 focus:outline-none transition-all shadow-xs"
                 />
               </div>
@@ -626,31 +901,50 @@ export const OnboardingPage: React.FC = () => {
             {syllabusMode === 'upload_file' && (
               <div className="pt-2 animate-in fade-in duration-150">
                 <label className="block text-xs font-semibold text-foreground mb-1">
-                  Upload Syllabus File
+                  Upload Syllabus Document
                 </label>
                 <div className="border-2 border-dashed border-border rounded-xl p-4 text-center hover:bg-muted/30 transition-colors">
                   <Upload className="w-6 h-6 text-muted-foreground mx-auto mb-2" />
                   <input
                     type="file"
-                    accept=".txt,.md,.json"
+                    accept=".txt,.md,.json,.pdf,.docx"
                     onChange={handleFileUpload}
                     className="text-xs text-muted-foreground"
                   />
                   {syllabusText && (
                     <p className="text-[11px] text-emerald-600 font-medium mt-2">
-                      ✓ File content loaded ({syllabusText.length} characters)
+                      ✓ Document content loaded ({syllabusText.length} characters)
                     </p>
                   )}
                 </div>
               </div>
             )}
 
-            {/* Pedagogical disclaimer alert */}
-            <div className="p-3 rounded-xl bg-muted/60 border border-border/80 flex items-start gap-2 text-xs text-muted-foreground">
-              <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-              <span>
-                StudyOS constructs custom learning pathways based on pedagogical principles. It never invents an official university syllabus and represents it as authentic.
-              </span>
+            {/* Manual Topics Entry */}
+            {syllabusMode === 'manual' && (
+              <div className="pt-2 animate-in fade-in duration-150">
+                <label className="block text-xs font-semibold text-foreground mb-1">
+                  Enter Topics Manually (one per line)
+                </label>
+                <textarea
+                  rows={4}
+                  value={manualTopics}
+                  onChange={(e) => setManualTopics(e.target.value)}
+                  placeholder="e.g.&#10;Introduction to Programming&#10;Control Flow & Loops&#10;Functions & Modules&#10;Object-Oriented Programming"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-xs focus:ring-2 focus:ring-primary-500 focus:outline-none transition-all shadow-xs"
+                />
+              </div>
+            )}
+
+            {/* Clear Pedagogical Disclaimer Required by Part 2 Q3 */}
+            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-2.5 text-xs text-amber-900 dark:text-amber-300">
+              <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <strong className="font-semibold block">Academic Disclaimer</strong>
+                <p className="text-[11px] leading-relaxed">
+                  AI-suggested syllabus topics are generated based on standard academic curricula. Please review and adjust to match your university's exact syllabus.
+                </p>
+              </div>
             </div>
 
             <div className="flex items-center justify-between pt-4">
@@ -665,7 +959,7 @@ export const OnboardingPage: React.FC = () => {
         )}
 
         {/* ============================================================== */}
-        {/* QUESTION 4 — CURRENT KNOWLEDGE */}
+        {/* QUESTION 4 — CURRENT KNOWLEDGE LEVEL */}
         {/* ============================================================== */}
         {currentStep === 'knowledge' && (
           <Card className="p-6 sm:p-8 space-y-6 animate-in fade-in duration-200">
@@ -673,9 +967,9 @@ export const OnboardingPage: React.FC = () => {
               <span className="text-xs font-bold uppercase tracking-wider text-primary-600 dark:text-primary-400">
                 Question 4
               </span>
-              <h2 className="text-xl font-bold text-foreground mt-1">What is your current knowledge level?</h2>
+              <h2 className="text-xl font-bold text-foreground mt-1">Current Knowledge Level</h2>
               <p className="text-xs text-muted-foreground mt-1">
-                We pace earlier sessions based on your starting confidence.
+                Help us calibrate where to begin and how rapidly to advance.
               </p>
             </div>
 
@@ -684,19 +978,19 @@ export const OnboardingPage: React.FC = () => {
                 {
                   id: 'beginner',
                   title: 'Beginner',
-                  desc: 'Starting from scratch. Need clear foundations & intuitive metaphors.',
+                  desc: 'I am starting from scratch. Need intuitive metaphors and step-by-step guidance.',
                   icon: Brain,
                 },
                 {
                   id: 'intermediate',
                   title: 'Intermediate',
-                  desc: 'Know the basics. Ready for deeper problem solving & real applications.',
+                  desc: 'I know the basics, need practice and depth. Ready for real-world problems.',
                   icon: Layers,
                 },
                 {
                   id: 'advanced',
                   title: 'Advanced',
-                  desc: 'Strong background. Focus on high-yield revision & exam questions.',
+                  desc: 'I want revision, problem-solving and exam readiness. Focus on high-yield edge cases.',
                   icon: Trophy,
                 },
               ].map((opt) => {
@@ -724,13 +1018,13 @@ export const OnboardingPage: React.FC = () => {
 
             <div>
               <label className="block text-xs font-semibold text-foreground mb-1.5">
-                Explain what you already know (Optional)
+                Specific topics you already know or struggle with (Optional)
               </label>
               <textarea
                 rows={2}
                 value={knowledgeSummary}
                 onChange={(e) => setKnowledgeSummary(e.target.value)}
-                placeholder="e.g. I know basic programming in C++, or I have completed calculus differential equations."
+                placeholder="e.g. I am confident in arrays and loops, but struggle with recursion and dynamic programming."
                 className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-xs focus:ring-2 focus:ring-primary-500 focus:outline-none transition-all shadow-xs"
               />
             </div>
@@ -747,7 +1041,7 @@ export const OnboardingPage: React.FC = () => {
         )}
 
         {/* ============================================================== */}
-        {/* QUESTION 5 — TIME AVAILABILITY */}
+        {/* QUESTION 5 — AVAILABLE TIME & SCHEDULE */}
         {/* ============================================================== */}
         {currentStep === 'time' && (
           <Card className="p-6 sm:p-8 space-y-6 animate-in fade-in duration-200">
@@ -755,16 +1049,16 @@ export const OnboardingPage: React.FC = () => {
               <span className="text-xs font-bold uppercase tracking-wider text-primary-600 dark:text-primary-400">
                 Question 5
               </span>
-              <h2 className="text-xl font-bold text-foreground mt-1">Time Availability & Deadlines</h2>
+              <h2 className="text-xl font-bold text-foreground mt-1">Available Study Time</h2>
               <p className="text-xs text-muted-foreground mt-1">
-                We schedule sessions realistically without burning you out.
+                Tell us your schedule so StudyOS builds a balanced, non-overlapping timetable.
               </p>
             </div>
 
             {/* Daily Hours */}
             <div>
               <label className="block text-xs font-semibold text-foreground mb-2">
-                How many hours can you study daily?
+                How many hours can you study per day?
               </label>
               <div className="flex flex-wrap items-center gap-2">
                 {[1, 2, 3, 4, 5, 6].map((hrs) => (
@@ -778,41 +1072,183 @@ export const OnboardingPage: React.FC = () => {
                         : 'border-border bg-card text-foreground hover:bg-muted'
                     }`}
                   >
-                    {hrs} {hrs === 1 ? 'Hour' : 'Hours'} / day
+                    {hrs} {hrs === 1 ? 'Hour' : hrs >= 6 ? '6+ Hours' : 'Hours'} / day
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Timeframe Presets */}
-            <div className="pt-2">
+            {/* Preferred Study Session Duration */}
+            <div>
               <label className="block text-xs font-semibold text-foreground mb-2">
-                How many days or weeks do you have?
+                Preferred study session duration
               </label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="grid grid-cols-3 gap-2.5">
                 {[
-                  { id: '14_days', label: '14 Days (Sprint)' },
-                  { id: '30_days', label: '30 Days (1 Month)' },
-                  { id: '60_days', label: '60 Days (2 Months)' },
-                  { id: '90_days', label: '90 Days (Semester)' },
-                ].map((preset) => (
+                  { mins: 30, label: '30 Minutes', desc: 'Pomodoro-style sprints' },
+                  { mins: 45, label: '45 Minutes', desc: 'Standard deep focus' },
+                  { mins: 60, label: '60 Minutes', desc: 'Extended lecture session' },
+                ].map((s) => (
                   <button
-                    key={preset.id}
+                    key={s.mins}
                     type="button"
-                    onClick={() => handleTimeframePreset(preset.id)}
-                    className={`p-2.5 rounded-xl text-xs font-medium border text-center transition-all cursor-pointer ${
-                      timeframePreset === preset.id
-                        ? 'border-primary-600 bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-200 font-bold'
+                    onClick={() => setPreferredSessionMinutes(s.mins)}
+                    className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
+                      preferredSessionMinutes === s.mins
+                        ? 'border-primary-600 bg-primary-50 dark:bg-primary-950/40 text-primary-900 dark:text-primary-200 ring-1 ring-primary-500'
                         : 'border-border bg-card text-muted-foreground hover:bg-muted'
                     }`}
                   >
-                    {preset.label}
+                    <span className="block text-xs font-bold text-foreground">{s.label}</span>
+                    <span className="block text-[10px] text-muted-foreground mt-0.5">{s.desc}</span>
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Target Completion Date */}
+            {/* Available Days */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-semibold text-foreground">Available study days</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAvailableDays([0, 1, 2, 3, 4, 5, 6])}
+                    className="text-[11px] text-primary-600 hover:underline font-medium cursor-pointer"
+                  >
+                    All Days
+                  </button>
+                  <span className="text-muted-foreground text-[11px]">•</span>
+                  <button
+                    type="button"
+                    onClick={() => setAvailableDays([1, 2, 3, 4, 5])}
+                    className="text-[11px] text-primary-600 hover:underline font-medium cursor-pointer"
+                  >
+                    Weekdays
+                  </button>
+                  <span className="text-muted-foreground text-[11px]">•</span>
+                  <button
+                    type="button"
+                    onClick={() => setAvailableDays([0, 6])}
+                    className="text-[11px] text-primary-600 hover:underline font-medium cursor-pointer"
+                  >
+                    Weekends
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-7 gap-1.5">
+                {dayNames.map((dayName, idx) => {
+                  const isSelected = availableDays.includes(idx);
+                  return (
+                    <button
+                      key={dayName}
+                      type="button"
+                      onClick={() => toggleDay(idx)}
+                      className={`py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                        isSelected
+                          ? 'border-primary-600 bg-primary-600 text-white shadow-xs'
+                          : 'border-border bg-card text-muted-foreground hover:bg-muted'
+                      }`}
+                    >
+                      {dayName}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Preferred Study Time */}
+            <div>
+              <label className="block text-xs font-semibold text-foreground mb-2">
+                Preferred study time of day
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[
+                  { id: 'morning', label: 'Morning', time: '6 AM – 12 PM', icon: Sun },
+                  { id: 'afternoon', label: 'Afternoon', time: '12 PM – 5 PM', icon: Coffee },
+                  { id: 'evening', label: 'Evening', time: '5 PM – 9 PM', icon: Sunset },
+                  { id: 'night', label: 'Night', time: '9 PM – 12 AM', icon: Moon },
+                ].map((t) => {
+                  const Icon = t.icon;
+                  const isSelected = preferredTimeOfDay === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setPreferredTimeOfDay(t.id as any)}
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                        isSelected
+                          ? 'border-primary-600 bg-primary-50/70 dark:bg-primary-950/40 ring-1 ring-primary-500'
+                          : 'border-border bg-card hover:bg-muted/60'
+                      }`}
+                    >
+                      <Icon
+                        className={`w-4 h-4 mb-1.5 ${
+                          isSelected ? 'text-primary-600' : 'text-muted-foreground'
+                        }`}
+                      />
+                      <span className="block text-xs font-bold text-foreground">{t.label}</span>
+                      <span className="block text-[10px] text-muted-foreground">{t.time}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-4">
+              <Button variant="ghost" onClick={goToPrevStep} leftIcon={<ArrowLeft className="w-4 h-4" />}>
+                Back
+              </Button>
+              <Button onClick={goToNextStep} rightIcon={<ArrowRight className="w-4 h-4" />}>
+                Continue
+              </Button>
+            </div>
+          </Card>
+        )}
+
+        {/* ============================================================== */}
+        {/* QUESTION 6 — COMPLETION TARGET & EXAM DATE */}
+        {/* ============================================================== */}
+        {currentStep === 'target' && (
+          <Card className="p-6 sm:p-8 space-y-6 animate-in fade-in duration-200">
+            <div>
+              <span className="text-xs font-bold uppercase tracking-wider text-primary-600 dark:text-primary-400">
+                Question 6
+              </span>
+              <h2 className="text-xl font-bold text-foreground mt-1">Completion Target</h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                When would you like to finish this learning milestone?
+              </p>
+            </div>
+
+            {/* Presets */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              {[
+                { id: '1_week', label: '1 Week', desc: 'Intensive revision' },
+                { id: '2_weeks', label: '2 Weeks', desc: 'Crash course' },
+                { id: '1_month', label: '1 Month', desc: 'Standard pace' },
+                { id: '2_months', label: '2 Months', desc: 'Comprehensive' },
+              ].map((p) => {
+                const isSelected = timeframePreset === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => handleTimeframePreset(p.id)}
+                    className={`p-3.5 rounded-xl border text-center transition-all cursor-pointer ${
+                      isSelected
+                        ? 'border-primary-600 bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-200 ring-1 ring-primary-500'
+                        : 'border-border bg-card text-muted-foreground hover:bg-muted'
+                    }`}
+                  >
+                    <span className="block text-xs font-bold text-foreground">{p.label}</span>
+                    <span className="block text-[10px] text-muted-foreground mt-0.5">{p.desc}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Target and Exam Dates */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
               <div>
                 <label className="block text-xs font-semibold text-foreground mb-1">
@@ -833,14 +1269,14 @@ export const OnboardingPage: React.FC = () => {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs font-semibold text-foreground">
-                    Do you have an exam date?
+                    Do you have a specific exam date?
                   </label>
                   <input
                     type="checkbox"
-                    id="hasExam"
+                    id="hasExamDate"
                     checked={hasExamDate}
                     onChange={(e) => setHasExamDate(e.target.checked)}
-                    className="rounded border-border text-primary-600 focus:ring-primary-500"
+                    className="rounded border-border text-primary-600 focus:ring-primary-500 cursor-pointer"
                   />
                 </div>
                 {hasExamDate ? (
@@ -852,8 +1288,8 @@ export const OnboardingPage: React.FC = () => {
                     className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-xs focus:ring-2 focus:ring-primary-500 focus:outline-none transition-all shadow-xs"
                   />
                 ) : (
-                  <p className="text-[11px] text-muted-foreground py-2">
-                    Check if you have an upcoming test or semester exam to prioritize high-yield topics.
+                  <p className="text-[11px] text-muted-foreground py-2 leading-relaxed">
+                    Check if you have an upcoming semester or entrance exam. StudyOS prioritizes high-yield units beforehand.
                   </p>
                 )}
               </div>
@@ -871,18 +1307,160 @@ export const OnboardingPage: React.FC = () => {
         )}
 
         {/* ============================================================== */}
-        {/* QUESTION 6 — LEARNING PREFERENCE */}
+        {/* QUESTION 7 — LEARNING DEPTH (3 ATTRACTIVE CARDS) */}
+        {/* ============================================================== */}
+        {currentStep === 'depth' && (
+          <Card className="p-6 sm:p-8 space-y-6 animate-in fade-in duration-200">
+            <div>
+              <span className="text-xs font-bold uppercase tracking-wider text-primary-600 dark:text-primary-400">
+                Question 7
+              </span>
+              <h2 className="text-xl font-bold text-foreground mt-1">Learning Depth</h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                How thoroughly do you want StudyOS to prepare your notes, flashcards, and timetable?
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Card 1: BRIEFLY */}
+              <button
+                type="button"
+                onClick={() => setLearningDepth('briefly')}
+                className={`flex flex-col justify-between p-5 rounded-2xl border text-left transition-all cursor-pointer ${
+                  learningDepth === 'briefly'
+                    ? 'border-primary-600 bg-primary-50/70 dark:bg-primary-950/40 ring-2 ring-primary-500 shadow-md'
+                    : 'border-border bg-card hover:bg-muted/60'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="px-2.5 py-1 rounded-lg text-xs font-extrabold uppercase tracking-wider bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300">
+                      BRIEFLY
+                    </span>
+                    {learningDepth === 'briefly' && <Check className="w-5 h-5 text-primary-600" />}
+                  </div>
+                  <h3 className="text-sm font-bold text-foreground mb-1.5">Quick Overview & Key Notes</h3>
+                  <ul className="text-xs text-muted-foreground space-y-1.5">
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-primary-600 font-bold">•</span>
+                      <span>High-yield formulas and definitions</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-primary-600 font-bold">•</span>
+                      <span>Concise summary notes</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-primary-600 font-bold">•</span>
+                      <span>Rapid exam recall</span>
+                    </li>
+                  </ul>
+                </div>
+                <div className="mt-4 pt-3 border-t border-border/60 text-[10px] font-semibold text-primary-600 dark:text-primary-400">
+                  Best for: Fast revision & last-minute exam prep
+                </div>
+              </button>
+
+              {/* Card 2: MODERATELY */}
+              <button
+                type="button"
+                onClick={() => setLearningDepth('moderately')}
+                className={`flex flex-col justify-between p-5 rounded-2xl border text-left transition-all cursor-pointer ${
+                  learningDepth === 'moderately'
+                    ? 'border-primary-600 bg-primary-50/70 dark:bg-primary-950/40 ring-2 ring-primary-500 shadow-md'
+                    : 'border-border bg-card hover:bg-muted/60'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="px-2.5 py-1 rounded-lg text-xs font-extrabold uppercase tracking-wider bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                      MODERATELY
+                    </span>
+                    {learningDepth === 'moderately' && <Check className="w-5 h-5 text-primary-600" />}
+                  </div>
+                  <h3 className="text-sm font-bold text-foreground mb-1.5">Balanced & Structured</h3>
+                  <ul className="text-xs text-muted-foreground space-y-1.5">
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-primary-600 font-bold">•</span>
+                      <span>Balanced concept explanations</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-primary-600 font-bold">•</span>
+                      <span>Core practice problems & examples</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-primary-600 font-bold">•</span>
+                      <span>Standard comprehensive notes</span>
+                    </li>
+                  </ul>
+                </div>
+                <div className="mt-4 pt-3 border-t border-border/60 text-[10px] font-semibold text-primary-600 dark:text-primary-400">
+                  Best for: Semester study & solid understanding
+                </div>
+              </button>
+
+              {/* Card 3: DEEPLY */}
+              <button
+                type="button"
+                onClick={() => setLearningDepth('deeply')}
+                className={`flex flex-col justify-between p-5 rounded-2xl border text-left transition-all cursor-pointer ${
+                  learningDepth === 'deeply'
+                    ? 'border-primary-600 bg-primary-50/70 dark:bg-primary-950/40 ring-2 ring-primary-500 shadow-md'
+                    : 'border-border bg-card hover:bg-muted/60'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="px-2.5 py-1 rounded-lg text-xs font-extrabold uppercase tracking-wider bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300">
+                      DEEPLY
+                    </span>
+                    {learningDepth === 'deeply' && <Check className="w-5 h-5 text-primary-600" />}
+                  </div>
+                  <h3 className="text-sm font-bold text-foreground mb-1.5">Exhaustive Mastery</h3>
+                  <ul className="text-xs text-muted-foreground space-y-1.5">
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-primary-600 font-bold">•</span>
+                      <span>In-depth theoretical derivations</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-primary-600 font-bold">•</span>
+                      <span>Edge cases & advanced exercises</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-primary-600 font-bold">•</span>
+                      <span>Exhaustive notes with code examples</span>
+                    </li>
+                  </ul>
+                </div>
+                <div className="mt-4 pt-3 border-t border-border/60 text-[10px] font-semibold text-primary-600 dark:text-primary-400">
+                  Best for: Mastery, competitive exams & interviews
+                </div>
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between pt-4">
+              <Button variant="ghost" onClick={goToPrevStep} leftIcon={<ArrowLeft className="w-4 h-4" />}>
+                Back
+              </Button>
+              <Button onClick={goToNextStep} rightIcon={<ArrowRight className="w-4 h-4" />}>
+                Continue
+              </Button>
+            </div>
+          </Card>
+        )}
+
+        {/* ============================================================== */}
+        {/* QUESTION 8 — LEARNING STYLE PREFERENCES */}
         {/* ============================================================== */}
         {currentStep === 'preferences' && (
           <Card className="p-6 sm:p-8 space-y-6 animate-in fade-in duration-200">
             <div className="flex items-start justify-between">
               <div>
                 <span className="text-xs font-bold uppercase tracking-wider text-primary-600 dark:text-primary-400">
-                  Question 6
+                  Question 8
                 </span>
-                <h2 className="text-xl font-bold text-foreground mt-1">How do you prefer learning?</h2>
+                <h2 className="text-xl font-bold text-foreground mt-1">Learning Style Preferences</h2>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Select your favorite study formats (select all that apply).
+                  How do you learn best? Choose one, several, or all formats.
                 </p>
               </div>
               <Button variant="ghost" size="sm" onClick={selectAllPreferences} className="text-xs">
@@ -948,7 +1526,7 @@ export const OnboardingPage: React.FC = () => {
         )}
 
         {/* ============================================================== */}
-        {/* SUMMARY & WORKSPACE CONFIRMATION */}
+        {/* STEP 9 — REVIEW AND GENERATE SCREEN */}
         {/* ============================================================== */}
         {currentStep === 'review' && (
           <div className="space-y-6 animate-in fade-in duration-200">
@@ -967,74 +1545,121 @@ export const OnboardingPage: React.FC = () => {
 
             {!isLoadingProposal && proposal && (
               <>
-                {/* Summary Banner */}
+                {/* Summary Banner with all 8 items */}
                 <Card className="p-6 border-primary-500/30 bg-gradient-to-r from-card to-primary-50/20 dark:to-primary-950/20">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <Badge variant="default" className="text-[10px]">
                           {educationLevel}
                         </Badge>
-                        <span className="text-xs text-muted-foreground font-medium">
-                          • {dailyHours} hrs/day • Target: {targetDate}
-                        </span>
+                        {courseDegree && (
+                          <Badge variant="outline" className="text-[10px]">
+                            {courseDegree}
+                          </Badge>
+                        )}
+                        <Badge variant="outline" className="text-[10px] uppercase font-bold text-primary-600">
+                          {learningDepth} Depth
+                        </Badge>
                       </div>
+
                       <h2 className="text-xl font-bold text-foreground">
                         {customGoal ? customGoal : learningGoal}
                       </h2>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Starting level: <strong className="capitalize">{knowledgeLevel}</strong> • Formats: {learningPreferences.join(', ')}
-                      </p>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-1 gap-x-4 text-xs text-muted-foreground">
+                        <div>
+                          • Daily: <strong>{dailyHours} hrs/day</strong> ({preferredSessionMinutes}m sessions)
+                        </div>
+                        <div>
+                          • Preferred: <strong className="capitalize">{preferredTimeOfDay}</strong>
+                        </div>
+                        <div>
+                          • Target: <strong>{targetDate}</strong>
+                        </div>
+                        <div>
+                          • Level: <strong className="capitalize">{knowledgeLevel}</strong>
+                        </div>
+                        <div>
+                          • Days: <strong>{availableDays.length} days/week</strong>
+                        </div>
+                        {hasExamDate && examDate && (
+                          <div className="text-amber-600 font-semibold">
+                            • Exam: <strong>{examDate}</strong>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col sm:flex-row items-center gap-2 shrink-0">
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setCurrentStep('goal')}
-                        className="text-xs"
+                        onClick={() => setCurrentStep('education')}
+                        className="text-xs w-full sm:w-auto"
                       >
-                        Edit My Answers
+                        Edit Answers
                       </Button>
                       <Button
                         size="sm"
                         onClick={handleGenerateWorkspace}
                         disabled={isGeneratingWorkspace}
                         leftIcon={<Sparkles className="w-4 h-4" />}
-                        className="bg-primary-600 hover:bg-primary-700 text-white shadow-sm"
+                        className="bg-primary-600 hover:bg-primary-700 text-white shadow-sm w-full sm:w-auto font-bold"
                       >
-                        Generate My Study Plan
+                        Generate My Study Workspace
                       </Button>
                     </div>
                   </div>
                 </Card>
 
-                {/* Feasibility Alert */}
-                {proposal.feasibilityAssessment && (
-                  <div className="p-4 rounded-xl border border-border bg-card flex items-start gap-3 shadow-xs">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-foreground">Workload Feasibility</span>
-                        <Badge
-                          variant={
-                            proposal.feasibilityAssessment.status === 'feasible'
-                              ? 'success'
-                              : proposal.feasibilityAssessment.status === 'tight'
-                              ? 'warning'
-                              : 'danger'
-                          }
-                          className="capitalize text-[10px]"
-                        >
-                          {proposal.feasibilityAssessment.status}
-                        </Badge>
+                {/* Workload Feasibility Assessment Required by Part 3 */}
+                {(() => {
+                  const feasibility = calculateFeasibility();
+                  return (
+                    <div className="p-4 rounded-xl border border-border bg-card flex items-start gap-3 shadow-xs">
+                      <CheckCircle2
+                        className={`w-5 h-5 shrink-0 mt-0.5 ${
+                          feasibility.status === 'feasible'
+                            ? 'text-emerald-500'
+                            : feasibility.status === 'tight'
+                            ? 'text-amber-500'
+                            : 'text-rose-500'
+                        }`}
+                      />
+                      <div className="space-y-1 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-foreground">
+                            Workload Feasibility Assessment
+                          </span>
+                          <Badge
+                            variant={
+                              feasibility.status === 'feasible'
+                                ? 'success'
+                                : feasibility.status === 'tight'
+                                ? 'warning'
+                                : 'danger'
+                            }
+                            className="capitalize text-[10px]"
+                          >
+                            {feasibility.status}
+                          </Badge>
+                          <span className="text-[11px] font-mono text-muted-foreground ml-auto">
+                            {feasibility.totalAvailableHours} hrs available vs {feasibility.estimatedHours} hrs needed
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {feasibility.explanation}
+                        </p>
+                        {feasibility.suggestion && (
+                          <p className="text-xs text-primary-600 dark:text-primary-400 font-medium">
+                            💡 Recommendation: {feasibility.suggestion}
+                          </p>
+                        )}
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {proposal.feasibilityAssessment.explanation}
-                      </p>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* Proposed Subjects & Syllabus Breakdown */}
                 <div className="space-y-4">
@@ -1115,20 +1740,21 @@ export const OnboardingPage: React.FC = () => {
                   ))}
                 </div>
 
-                {/* Disclaimer */}
+                {/* Pedagogical Disclaimer */}
                 <p className="text-[11px] text-muted-foreground italic text-center">
-                  {proposal.disclaimer}
+                  {proposal.disclaimer ||
+                    'AI-suggested syllabus topics are generated based on standard academic curricula. Please review and adjust to match your university\'s exact syllabus.'}
                 </p>
 
                 {/* Action Buttons */}
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
                   <Button
                     variant="outline"
-                    onClick={() => setCurrentStep('goal')}
+                    onClick={() => setCurrentStep('education')}
                     leftIcon={<ArrowLeft className="w-4 h-4" />}
                     className="w-full sm:w-auto"
                   >
-                    Edit My Answers
+                    Edit Answers
                   </Button>
 
                   <Button
@@ -1138,7 +1764,7 @@ export const OnboardingPage: React.FC = () => {
                     leftIcon={<Sparkles className="w-4 h-4" />}
                     className="w-full sm:w-auto bg-primary-600 hover:bg-primary-700 text-white font-bold shadow-md"
                   >
-                    Generate My Study Plan
+                    Generate My Study Workspace
                   </Button>
                 </div>
               </>
@@ -1169,6 +1795,10 @@ export const OnboardingPage: React.FC = () => {
               <div className="flex items-center gap-2">
                 <Check className="w-3.5 h-3.5 text-emerald-500" />
                 <span>Enrolling subjects & syllabus topics</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Check className="w-3.5 h-3.5 text-emerald-500" />
+                <span>Synthesizing starter study notes matching your learning depth</span>
               </div>
               <div className="flex items-center gap-2">
                 <Check className="w-3.5 h-3.5 text-emerald-500" />

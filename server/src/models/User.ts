@@ -5,6 +5,10 @@ export interface IUserPreferences {
   breakMinutes: number;
   dailyTargetHours: number;
   reminderNotifications: boolean;
+  learningDepth?: 'briefly' | 'moderately' | 'deeply';
+  preferredTimeOfDay?: 'morning' | 'afternoon' | 'evening' | 'night';
+  availableDays?: number[];
+  learningStyles?: string[];
 }
 
 export interface IUser extends Document {
@@ -16,7 +20,9 @@ export interface IUser extends Document {
   avatar?: string;
   authProvider?: 'local' | 'google';
   educationLevel?: string;
+  courseDegree?: string;
   academicYear?: string;
+  learningGoal?: string;
   timezone: string;
   onboardingCompleted: boolean;
   theme: 'light' | 'dark' | 'system';
@@ -64,12 +70,23 @@ const UserSchema = new Schema<IUser>(
     },
     educationLevel: {
       type: String,
-      enum: ['High School', 'Undergraduate', 'Postgraduate', 'Doctorate', 'Self-Taught', 'Other'],
       default: 'Undergraduate',
+      trim: true,
+    },
+    courseDegree: {
+      type: String,
+      default: '',
+      trim: true,
     },
     academicYear: {
       type: String,
       default: 'Year 1',
+      trim: true,
+    },
+    learningGoal: {
+      type: String,
+      default: '',
+      trim: true,
     },
     timezone: {
       type: String,
@@ -107,6 +124,24 @@ const UserSchema = new Schema<IUser>(
       reminderNotifications: {
         type: Boolean,
         default: true,
+      },
+      learningDepth: {
+        type: String,
+        enum: ['briefly', 'moderately', 'deeply'],
+        default: 'moderately',
+      },
+      preferredTimeOfDay: {
+        type: String,
+        enum: ['morning', 'afternoon', 'evening', 'night'],
+        default: 'morning',
+      },
+      availableDays: {
+        type: [Number],
+        default: [1, 2, 3, 4, 5, 6],
+      },
+      learningStyles: {
+        type: [String],
+        default: ['videos', 'notes', 'flashcards', 'quizzes'],
       },
     },
   },
