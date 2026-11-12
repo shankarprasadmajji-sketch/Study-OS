@@ -249,13 +249,11 @@ describe('StudyOS — User Profile Icon, Modal & Theme Contrast Suite', () => {
       expect(musicBtn).toHaveTextContent('Study Music');
       expect(musicBtn.className).toContain('text-white');
 
-      // Button 3: Start Focus Session (Must NOT be blank white button!)
-      const focusBtn = screen.getByRole('button', { name: /start focus session/i });
+      // Button 3: Focus Mode (Must NOT be blank white button!)
+      const focusBtn = screen.getByRole('button', { name: /(focus mode|start focus session)/i });
       expect(focusBtn).toBeInTheDocument();
-      expect(focusBtn).toHaveTextContent('Start Focus Session');
-      // Must contain high-contrast dark text class and not drop text in cascade
-      expect(focusBtn.className).toContain('text-primary-900');
-      expect(focusBtn.className).toContain('bg-white');
+      expect(focusBtn.textContent).toMatch(/(focus mode|start focus session)/i);
+      expect(focusBtn.className).toContain('text-white');
     });
   });
 });

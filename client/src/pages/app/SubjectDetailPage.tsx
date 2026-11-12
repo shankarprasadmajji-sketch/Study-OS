@@ -11,6 +11,7 @@ import {
   Edit,
   Tag,
   AlertCircle,
+  Sparkles,
 } from 'lucide-react';
 import { apiRequest } from '../../api/client.js';
 import { Subject, Topic } from '../../types/index.js';
@@ -368,6 +369,23 @@ export const SubjectDetailPage: React.FC = () => {
           </div>
         )}
       </Card>
+
+      {/* Next Step in Student Journey */}
+      {topics.length > 0 && (
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-card via-card to-primary-50/20 dark:to-primary-950/20 border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-subtle">
+          <div>
+            <h4 className="text-xs font-bold text-foreground">Syllabus breakdown configured!</h4>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Proceed to the AI Study Plan to generate your optimized schedule and begin learning.
+            </p>
+          </div>
+          <Link to="/app/study-plan">
+            <Button size="sm" leftIcon={<Sparkles className="w-3.5 h-3.5 text-amber-400" />}>
+              Generate Study Plan →
+            </Button>
+          </Link>
+        </div>
+      )}
 
       {/* Add / Edit Topic Modal */}
       <Modal

@@ -52,7 +52,11 @@ interface HistorySummary {
   completedThisMonth: number;
 }
 
-export const HistoryPage: React.FC = () => {
+interface HistoryPageProps {
+  embedded?: boolean;
+}
+
+export const HistoryPage: React.FC<HistoryPageProps> = ({ embedded = false }) => {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [summary, setSummary] = useState<HistorySummary | null>(null);
   const [subjects, setSubjects] = useState<any[]>([]);
@@ -124,26 +128,28 @@ export const HistoryPage: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            <History className="w-6 h-6 text-primary-600" />
-            Completed Task History
-          </h1>
-          <p className="text-xs text-muted-foreground mt-1">
-            Verified chronological log of your completed academic sessions, study milestones, and time investments.
-          </p>
-        </div>
+      {!embedded && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
+              <History className="w-6 h-6 text-primary-600" />
+              Completed Task History
+            </h1>
+            <p className="text-xs text-muted-foreground mt-1">
+              Verified chronological log of your completed academic sessions, study milestones, and time investments.
+            </p>
+          </div>
 
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={fetchHistoryData}
-          leftIcon={<RotateCcw className="w-3.5 h-3.5" />}
-        >
-          Refresh Log
-        </Button>
-      </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchHistoryData}
+            leftIcon={<RotateCcw className="w-3.5 h-3.5" />}
+          >
+            Refresh Log
+          </Button>
+        </div>
+      )}
 
       {/* Summary KPI Cards */}
       {summary && (

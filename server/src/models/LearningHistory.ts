@@ -79,3 +79,4 @@ LearningHistorySchema.index({ userId: 1, topicId: 1, activityType: 1 });
 export const LearningHistoryModel: Model<ILearningHistory> =
   mongoose.models.LearningHistory ||
   mongoose.model<ILearningHistory>('LearningHistory', LearningHistorySchema);
+

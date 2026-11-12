@@ -94,3 +94,4 @@ QuizAttemptSchema.index({ userId: 1, completedAt: -1 });
 export const QuizAttemptModel: Model<IQuizAttempt> =
   mongoose.models.QuizAttempt ||
   mongoose.model<IQuizAttempt>('QuizAttempt', QuizAttemptSchema);
+

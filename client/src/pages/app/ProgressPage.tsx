@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   BarChart3,
   Calendar,
   Clock,
   CheckCircle2,
   TrendingUp,
-  History,
+  History as HistoryIcon,
   BookOpen,
   Flame,
   Target,
@@ -15,6 +15,7 @@ import {
   HelpCircle,
   Sparkles,
 } from 'lucide-react';
+import { HistoryPage } from './HistoryPage.js';
 import {
   ResponsiveContainer,
   BarChart,
@@ -73,6 +74,11 @@ interface StreaksData {
 }
 
 export const ProgressPage: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<'overview' | 'history'>(
+    searchParams.get('tab') === 'history' ? 'history' : 'overview'
+  );
+
   const [summary, setSummary] = useState<ProgressSummary | null>(null);
   const [subjectsProgress, setSubjectsProgress] = useState<any[]>([]);
   const [accuracy, setAccuracy] = useState<AccuracyData | null>(null);
@@ -80,6 +86,17 @@ export const ProgressPage: React.FC = () => {
   const [accuracyRange, setAccuracyRange] = useState<string>('all');
   const [showFormulaTooltip, setShowFormulaTooltip] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (searchParams.get('tab') === 'history') {
+      setActiveTab('history');
+    }
+  }, [searchParams]);
+
+  const handleTabChange = (tab: 'overview' | 'history') => {
+    setActiveTab(tab);
+    setSearchParams(tab === 'history' ? { tab: 'history' } : {});
+  };
 
   const fetchAnalytics = async () => {
     setLoading(true);
@@ -130,14 +147,45 @@ export const ProgressPage: React.FC = () => {
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
           <BarChart3 className="w-6 h-6 text-primary-600" />
-          Academic Progress, Accuracy & Streaks
+          Academic Progress & Task History
         </h1>
         <p className="text-xs text-muted-foreground mt-1">
-          Measurable execution data: track consecutive study streaks, task completion accuracy, and syllabus mastery.
+          Measurable execution data: track consecutive study streaks, task completion accuracy, and completed study history.
         </p>
       </div>
 
-      {/* Hero Cards: Study Streak & Study Accuracy */}
+      {/* Tab Switcher: Overview vs History */}
+      <div className="flex items-center gap-2 border-b border-border pb-3">
+        <button
+          onClick={() => handleTabChange('overview')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            activeTab === 'overview'
+              ? 'bg-primary-600 text-white shadow-sm'
+              : 'bg-muted/50 text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <BarChart3 className="w-4 h-4" />
+          <span>Progress & Analytics</span>
+        </button>
+
+        <button
+          onClick={() => handleTabChange('history')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            activeTab === 'history'
+              ? 'bg-primary-600 text-white shadow-sm'
+              : 'bg-muted/50 text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <HistoryIcon className="w-4 h-4" />
+          <span>Task History</span>
+        </button>
+      </div>
+
+      {activeTab === 'history' ? (
+        <HistoryPage embedded />
+      ) : (
+        <>
+          {/* Hero Cards: Study Streak & Study Accuracy */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* Streak Card (6 cols) */}
         {streaks && (
@@ -486,6 +534,8 @@ export const ProgressPage: React.FC = () => {
           </Card>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 };

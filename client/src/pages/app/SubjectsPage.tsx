@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
+  Sparkles,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { apiRequest } from '../../api/client.js';
@@ -295,6 +296,23 @@ export const SubjectsPage: React.FC = () => {
               </Link>
             </Card>
           ))}
+        </div>
+      )}
+
+      {/* Obvious Next Step in Student Journey */}
+      {filteredSubjects.length > 0 && (
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-card via-card to-primary-50/20 dark:to-primary-950/20 border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-subtle">
+          <div>
+            <h4 className="text-xs font-bold text-foreground">Done entering your syllabus topics?</h4>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Generate a personalized study roadmap with realistic workload feasibility.
+            </p>
+          </div>
+          <Link to="/app/study-plan">
+            <Button size="sm" leftIcon={<Sparkles className="w-3.5 h-3.5 text-amber-400" />}>
+              Go to AI Study Plan →
+            </Button>
+          </Link>
         </div>
       )}
 

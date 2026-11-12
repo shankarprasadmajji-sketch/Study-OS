@@ -62,7 +62,7 @@ export const App: React.FC = () => {
         <Route path="study-plan" element={<StudyPlanPage />} />
         <Route path="progress" element={<ProgressPage />} />
         <Route path="notes" element={<NotesPage />} />
-        <Route path="history" element={<HistoryPage />} />
+        <Route path="history" element={<Navigate to="/app/progress?tab=history" replace />} />
         <Route path="music" element={<MusicPage />} />
         <Route path="focus" element={<FocusPage />} />
         <Route path="profile" element={<ProfilePage />} />

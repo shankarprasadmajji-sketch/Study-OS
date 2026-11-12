@@ -199,3 +199,4 @@ TopicLearningMaterialSchema.index({ userId: 1, topicId: 1 }, { unique: true });
 export const TopicLearningMaterialModel: Model<ITopicLearningMaterial> =
   mongoose.models.TopicLearningMaterial ||
   mongoose.model<ITopicLearningMaterial>('TopicLearningMaterial', TopicLearningMaterialSchema);
+

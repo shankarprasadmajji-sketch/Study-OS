@@ -7,41 +7,35 @@ import {
   Calendar,
   Sparkles,
   ArrowRight,
-  TrendingUp,
-  AlertCircle,
   Play,
-  RotateCcw,
   BookOpen,
   Flame,
-  Target,
   FileText,
   Headphones,
-  History,
   Timer,
   Plus,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.js';
 import { apiRequest } from '../../api/client.js';
-import { StudySession, ProgressSummary, Subject } from '../../types/index.js';
-import { Card, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card.js';
+import { StudySession, Subject } from '../../types/index.js';
+import { Card } from '../../components/ui/Card.js';
 import { Badge } from '../../components/ui/Badge.js';
 import { Button } from '../../components/ui/Button.js';
 import { EmptyState } from '../../components/ui/EmptyState.js';
 import { QuickNoteModal } from '../../components/notes/QuickNoteModal.js';
+import { TopicLearningWorkspace } from '../../components/studyPlan/TopicLearningWorkspace.js';
 
 export const DashboardPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
-  const [summary, setSummary] = useState<ProgressSummary | null>(null);
   const [todaySessions, setTodaySessions] = useState<StudySession[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [streaks, setStreaks] = useState<any | null>(null);
-  const [accuracy, setAccuracy] = useState<any | null>(null);
-  const [recentHistory, setRecentHistory] = useState<any[]>([]);
   const [topics, setTopics] = useState<any[]>([]);
   const [isQuickNoteOpen, setIsQuickNoteOpen] = useState(false);
+  const [activeLearningTopicId, setActiveLearningTopicId] = useState<string | null>(null);
 
   const [todayMetrics, setTodayMetrics] = useState({
     plannedMinutes: 0,
@@ -53,23 +47,17 @@ export const DashboardPage: React.FC = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [sumRes, todayRes, subjRes, strkRes, accRes, histRes, topRes] = await Promise.all([
-        apiRequest<{ summary: ProgressSummary }>('/progress/summary'),
+      const [todayRes, subjRes, strkRes, topRes] = await Promise.all([
         apiRequest<{ sessions: StudySession[]; metrics: any }>('/study-sessions/today'),
         apiRequest<{ subjects: Subject[] }>('/subjects'),
         apiRequest<{ streaks: any }>('/progress/streaks'),
-        apiRequest<{ accuracy: any }>('/progress/accuracy?range=week'),
-        apiRequest<{ history: any[] }>('/history'),
         apiRequest<{ topics: any[] }>('/topics'),
       ]);
 
-      setSummary(sumRes.summary);
       setTodaySessions(todayRes.sessions || []);
       setTodayMetrics(todayRes.metrics || {});
       setSubjects(subjRes.subjects || []);
       setStreaks(strkRes.streaks || null);
-      setAccuracy(accRes.accuracy || null);
-      setRecentHistory((histRes.history || []).slice(0, 4));
       setTopics(topRes.topics || []);
     } catch (err) {
       console.error('Error fetching dashboard metrics:', err);
@@ -105,24 +93,21 @@ export const DashboardPage: React.FC = () => {
     }
   };
 
-  if (loading && !summary) {
+  if (loading && subjects.length === 0 && topics.length === 0) {
     return (
       <div className="space-y-6 animate-pulse">
         <div className="h-28 bg-muted rounded-2xl" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-28 bg-muted rounded-2xl" />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-24 bg-muted rounded-2xl" />
           ))}
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="h-80 bg-muted rounded-2xl lg:col-span-2" />
-          <div className="h-80 bg-muted rounded-2xl" />
-        </div>
+        <div className="h-64 bg-muted rounded-2xl" />
       </div>
     );
   }
 
-  // If user has zero subjects, show welcome state & prompt to add first subject
+  // If user has zero subjects, show clean welcome state & one obvious next action
   if (subjects.length === 0) {
     return (
       <div className="max-w-2xl mx-auto py-10 px-4">
@@ -150,7 +135,7 @@ export const DashboardPage: React.FC = () => {
 
           <div className="space-y-3 text-left pt-4 border-t border-border">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Quick Setup Guide
+              Student Journey
             </h3>
             <Link
               to="/app/subjects?action=new"
@@ -161,44 +146,36 @@ export const DashboardPage: React.FC = () => {
                   1
                 </span>
                 <div>
-                  <h4 className="text-xs font-semibold text-foreground">Add Your First Subject</h4>
-                  <p className="text-[11px] text-muted-foreground">Add courses, optional codes, and exam dates</p>
+                  <h4 className="text-xs font-semibold text-foreground">Add Subjects</h4>
+                  <p className="text-[11px] text-muted-foreground">Add course names and exam dates</p>
                 </div>
               </div>
               <ArrowRight className="w-4 h-4 text-primary-600" />
             </Link>
 
-            <Link
-              to="/app/topics"
-              className="p-3.5 rounded-xl border border-border bg-card hover:border-primary-400 flex items-center justify-between transition-colors block opacity-80"
-            >
+            <div className="p-3.5 rounded-xl border border-border bg-card flex items-center justify-between opacity-60">
               <div className="flex items-center gap-3">
                 <span className="w-6 h-6 rounded-full bg-muted text-muted-foreground text-xs font-bold flex items-center justify-center">
                   2
                 </span>
                 <div>
-                  <h4 className="text-xs font-semibold text-foreground">Break Down Syllabus Topics</h4>
-                  <p className="text-[11px] text-muted-foreground">Add chapters, estimated study minutes, and difficulty</p>
+                  <h4 className="text-xs font-semibold text-foreground">Enter Syllabus Topics</h4>
+                  <p className="text-[11px] text-muted-foreground">Add chapters and estimated study durations</p>
                 </div>
               </div>
-              <ArrowRight className="w-4 h-4 text-muted-foreground" />
-            </Link>
+            </div>
 
-            <Link
-              to="/app/study-plan"
-              className="p-3.5 rounded-xl border border-border bg-card hover:border-primary-400 flex items-center justify-between transition-colors block opacity-80"
-            >
+            <div className="p-3.5 rounded-xl border border-border bg-card flex items-center justify-between opacity-60">
               <div className="flex items-center gap-3">
                 <span className="w-6 h-6 rounded-full bg-muted text-muted-foreground text-xs font-bold flex items-center justify-center">
                   3
                 </span>
                 <div>
-                  <h4 className="text-xs font-semibold text-foreground">Generate Study Plan</h4>
-                  <p className="text-[11px] text-muted-foreground">Let the scheduler build your daily study schedule</p>
+                  <h4 className="text-xs font-semibold text-foreground">Generate AI Study Plan</h4>
+                  <p className="text-[11px] text-muted-foreground">Build your personalized learning roadmap</p>
                 </div>
               </div>
-              <ArrowRight className="w-4 h-4 text-muted-foreground" />
-            </Link>
+            </div>
           </div>
         </Card>
       </div>
@@ -213,367 +190,364 @@ export const DashboardPage: React.FC = () => {
   const topicCompletionRate =
     topics.length > 0 ? Math.round((completedTopicsCount / topics.length) * 100) : 0;
 
+  // Next upcoming study session
+  const nextSession =
+    todaySessions.find((s) => s.status === 'scheduled') ||
+    todaySessions.find((s) => s.status === 'in_progress') ||
+    todaySessions[0];
+
   return (
     <div className="space-y-6">
-      {/* Welcome Banner & Quick Action Buttons */}
+      {/* 1. Header Banner: Personalized Greeting + 3 Small Quick Actions */}
       <div className="p-6 rounded-2xl bg-gradient-to-r from-primary-700 via-primary-800 to-indigo-900 text-white shadow-elevated flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <span className="text-[11px] font-semibold uppercase tracking-wider text-primary-200">
-            Welcome Back, {user?.name}
+            Welcome Back, {user?.name || 'Student'}
           </span>
           <h2 className="text-xl sm:text-2xl font-bold tracking-tight mt-0.5">
             Academic Command Center
           </h2>
           <p className="text-xs text-primary-100 mt-1 max-w-xl leading-relaxed">
             {todayMetrics.totalSessionsToday > 0
-              ? `You have ${todayMetrics.totalSessionsToday} study session(s) scheduled today (${plannedHours} hours planned).`
-              : 'No sessions scheduled for today. Generate a study plan or review pending topics.'}
+              ? `You have ${todayMetrics.totalSessionsToday} study task(s) scheduled for today (${plannedHours} hours planned).`
+              : 'No sessions scheduled for today. Generate an AI study plan or review pending topics.'}
           </p>
         </div>
 
-        {/* Header Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2.5">
+        {/* Three Small Quick Actions: Quick Note, Focus Mode, Study Music */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Action 1: Quick Note */}
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setIsQuickNoteOpen(true)}
             leftIcon={<FileText className="w-3.5 h-3.5 text-white" />}
-            className="bg-white/15 hover:bg-white/25 text-white border border-white/25 backdrop-blur-sm"
+            className="bg-white/15 hover:bg-white/25 text-white border border-white/25 backdrop-blur-sm text-xs font-medium"
           >
-            <span className="text-white font-medium">Quick Note</span>
+            <span>Quick Note</span>
           </Button>
 
+          {/* Action 2: Focus Mode */}
+          <Link to="/app/focus">
+            <Button
+              variant="ghost"
+              size="sm"
+              leftIcon={<Timer className="w-3.5 h-3.5 text-white" />}
+              className="bg-white/15 hover:bg-white/25 text-white border border-white/25 backdrop-blur-sm text-xs font-medium"
+            >
+              <span>Focus Mode</span>
+            </Button>
+          </Link>
+
+          {/* Action 3: Study Music */}
           <Link to="/app/music">
             <Button
               variant="ghost"
               size="sm"
               leftIcon={<Headphones className="w-3.5 h-3.5 text-white" />}
-              className="bg-white/15 hover:bg-white/25 text-white border border-white/25 backdrop-blur-sm"
+              className="bg-white/15 hover:bg-white/25 text-white border border-white/25 backdrop-blur-sm text-xs font-medium"
             >
-              <span className="text-white font-medium">Study Music</span>
-            </Button>
-          </Link>
-
-          <Link to="/app/focus">
-            <Button
-              variant="white"
-              size="sm"
-              leftIcon={<Play className="w-3.5 h-3.5 text-primary-900 fill-primary-900" />}
-              className="bg-white text-primary-900 hover:bg-slate-100 font-bold shadow-sm border border-white/40 dark:bg-white dark:text-primary-900 dark:hover:bg-slate-100"
-            >
-              <span className="text-primary-900 dark:text-primary-900 font-bold">Start Focus Session</span>
+              <span>Study Music</span>
             </Button>
           </Link>
         </div>
       </div>
 
-      {/* Primary KPI Row: Streaks, Accuracy, Topics, Today's Hours */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Study Streak KPI */}
-        <Card className="p-4 border-border bg-gradient-to-br from-card to-amber-50/30 dark:to-amber-950/20">
+      {/* 2. Next Upcoming Study Session & Start Learning Hero Card */}
+      {nextSession && nextSession.status !== 'completed' ? (
+        <Card className="p-5 border-2 border-primary-500/40 bg-gradient-to-r from-card via-card to-primary-50/20 dark:to-primary-950/20 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5 min-w-0">
+              <div
+                className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm"
+                style={{ backgroundColor: nextSession.subjectColor || '#4f46e5' }}
+              >
+                <BookOpen className="w-6 h-6 text-white" />
+              </div>
+
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <span className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-primary-100 text-primary-800 dark:bg-primary-950 dark:text-primary-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Next Upcoming Session
+                  </span>
+                  <Badge
+                    size="sm"
+                    style={{
+                      backgroundColor: `${nextSession.subjectColor || '#4f46e5'}20`,
+                      color: nextSession.subjectColor || '#4f46e5',
+                    }}
+                  >
+                    {nextSession.subjectName}
+                  </Badge>
+                  <Badge size="sm" variant={nextSession.sessionType === 'revision' ? 'warning' : 'outline'}>
+                    {nextSession.sessionType === 'revision' ? 'Spaced Revision' : 'Deep Study'}
+                  </Badge>
+                </div>
+
+                <h3 className="text-base font-bold text-foreground truncate">
+                  {nextSession.topicTitle}
+                </h3>
+
+                <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5 font-medium">
+                  <Clock className="w-3.5 h-3.5 text-primary-500" />
+                  <span>
+                    {new Date(nextSession.scheduledStart).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}{' '}
+                    -{' '}
+                    {new Date(nextSession.scheduledEnd).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}{' '}
+                    ({nextSession.plannedMinutes} minutes planned)
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            {/* Start Learning Action Button */}
+            <div className="shrink-0 self-end sm:self-center">
+              <Button
+                size="md"
+                variant="white"
+                onClick={() => setActiveLearningTopicId(nextSession.topicId)}
+                leftIcon={<Play className="w-4 h-4 text-primary-900 fill-primary-900" />}
+                className="font-bold shadow-md text-xs sm:text-sm px-5"
+              >
+                Start Learning
+              </Button>
+            </div>
+          </div>
+        </Card>
+      ) : (
+        <Card className="p-4 border-border bg-card flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-foreground">
+                {todaySessions.length > 0
+                  ? 'All tasks scheduled for today are complete!'
+                  : 'No active session scheduled right now'}
+              </h4>
+              <p className="text-[11px] text-muted-foreground">
+                Visit your AI Study Plan to schedule upcoming topics or start learning a pending topic.
+              </p>
+            </div>
+          </div>
+
+          <Link to="/app/study-plan">
+            <Button size="sm" variant="outline" leftIcon={<Sparkles className="w-3.5 h-3.5" />}>
+              Open Study Plan
+            </Button>
+          </Link>
+        </Card>
+      )}
+
+      {/* 3. Essential Real-Data Statistics Row (No repeated or decorative metrics) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Completed vs Pending Topics */}
+        <Card className="p-4 border-border">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-muted-foreground flex items-center gap-1.5 uppercase tracking-wider">
+              <ListTodo className="w-4 h-4 text-primary-600" />
+              Syllabus Coverage
+            </span>
+            <Link to="/app/subjects" className="text-[11px] text-primary-600 hover:underline">
+              Subjects →
+            </Link>
+          </div>
+          <p className="text-2xl font-extrabold text-foreground mt-2">
+            {completedTopicsCount}{' '}
+            <span className="text-xs font-semibold text-muted-foreground">/ {topics.length} done</span>
+          </p>
+          <p className="text-[11px] text-muted-foreground mt-1">
+            {pendingTopicsCount} pending topics • {topicCompletionRate}% complete
+          </p>
+        </Card>
+
+        {/* Current Study Streak (Only when real data exists) */}
+        <Card className="p-4 border-border bg-gradient-to-br from-card to-amber-50/20 dark:to-amber-950/10">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1.5 uppercase tracking-wider">
               <Flame className="w-4 h-4 fill-amber-500 text-amber-500" />
               Study Streak
             </span>
             <Link to="/app/progress" className="text-[11px] text-primary-600 hover:underline">
-              View Map
+              View Map →
             </Link>
           </div>
-          <p className="text-2xl sm:text-3xl font-extrabold text-foreground mt-2">
-            {streaks?.currentStreak || 0} <span className="text-xs font-semibold text-muted-foreground">days</span>
-          </p>
-          <p className="text-[11px] text-muted-foreground mt-1 truncate">
-            Best: {streaks?.longestStreak || 0} days • {streaks?.isActiveToday ? '🔥 Active today' : 'Pending today'}
-          </p>
-        </Card>
-
-        {/* Study Accuracy KPI */}
-        <Card className="p-4 border-border bg-gradient-to-br from-card to-primary-50/30 dark:to-primary-950/20">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-primary-600 dark:text-primary-400 flex items-center gap-1.5 uppercase tracking-wider">
-              <Target className="w-4 h-4 text-primary-600" />
-              Completion Accuracy
-            </span>
-            <Link to="/app/progress" className="text-[11px] text-primary-600 hover:underline">
-              Details
-            </Link>
-          </div>
-          <p className="text-2xl sm:text-3xl font-extrabold text-foreground mt-2">
-            {accuracy?.accuracyPercent !== null ? `${accuracy?.accuracyPercent}%` : 'N/A'}
-          </p>
-          <p className="text-[11px] text-muted-foreground mt-1 truncate">
-            {accuracy?.onTimeCompletedCount || 0} on-time • {accuracy?.lateCompletedCount || 0} late
-          </p>
-        </Card>
-
-        {/* Completed vs Pending Topics KPI */}
-        <Card className="p-4 border-border">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-muted-foreground flex items-center gap-1.5 uppercase tracking-wider">
-              <ListTodo className="w-4 h-4 text-emerald-600" />
-              Syllabus Topics
-            </span>
-            <Link to="/app/topics" className="text-[11px] text-primary-600 hover:underline">
-              Manage
-            </Link>
-          </div>
-          <p className="text-2xl sm:text-3xl font-extrabold text-foreground mt-2">
-            {completedTopicsCount}{' '}
-            <span className="text-xs font-semibold text-muted-foreground">/ {topics.length} done</span>
+          <p className="text-2xl font-extrabold text-foreground mt-2">
+            {streaks?.currentStreak || 0}{' '}
+            <span className="text-xs font-semibold text-muted-foreground">days</span>
           </p>
           <p className="text-[11px] text-muted-foreground mt-1">
-            {pendingTopicsCount} pending • {topicCompletionRate}% coverage
+            {(streaks?.currentStreak || 0) > 0
+              ? streaks?.isActiveToday
+                ? '🔥 Active today! Keep it up!'
+                : 'Pending today: complete a task to maintain streak'
+              : 'Complete a study session today to ignite your streak'}
           </p>
         </Card>
 
-        {/* Today's Focus Progress */}
+        {/* Today's Tasks Progress */}
         <Card className="p-4 border-border">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-muted-foreground flex items-center gap-1.5 uppercase tracking-wider">
               <Clock className="w-4 h-4 text-indigo-600" />
-              Today's Focus
+              Today's Tasks
             </span>
             <Link to="/app/timetable" className="text-[11px] text-primary-600 hover:underline">
-              Timetable
+              Timetable →
             </Link>
           </div>
-          <p className="text-2xl sm:text-3xl font-extrabold text-foreground mt-2">
-            {completedHours}h <span className="text-xs font-semibold text-muted-foreground">/ {plannedHours}h</span>
+          <p className="text-2xl font-extrabold text-foreground mt-2">
+            {todayMetrics.completedSessionsToday}{' '}
+            <span className="text-xs font-semibold text-muted-foreground">
+              / {todayMetrics.totalSessionsToday} done
+            </span>
           </p>
           <p className="text-[11px] text-muted-foreground mt-1">
-            {todayMetrics.completedSessionsToday} of {todayMetrics.totalSessionsToday} sessions done
+            {todayMetrics.totalSessionsToday > 0
+              ? `${completedHours}h completed of ${plannedHours}h planned`
+              : 'No study tasks scheduled for today'}
           </p>
         </Card>
       </div>
 
-      {/* Main Split: Today's Schedule (8 cols) & Sidebar Cards (4 cols) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* Today's Study Schedule (8 cols) */}
-        <div className="lg:col-span-8 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-bold text-foreground flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-primary-600" />
-              Today's Scheduled Sessions
-            </h3>
-            <Link to="/app/timetable" className="text-xs text-primary-600 hover:underline">
-              Open Full Timetable →
-            </Link>
-          </div>
+      {/* 4. Today's Study Tasks List */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-primary-600" />
+            Today's Study Tasks ({todaySessions.length})
+          </h3>
+          <Link to="/app/timetable" className="text-xs text-primary-600 hover:underline">
+            View Full Timetable →
+          </Link>
+        </div>
 
-          {todaySessions.length === 0 ? (
-            <Card className="p-8 text-center border-border">
-              <EmptyState
-                icon={<Calendar className="w-8 h-8" />}
-                title="No study sessions scheduled for today"
-                description="Generate a new plan or visit your study schedule to map upcoming topics."
-                actionLabel="Generate Plan"
-                actionPath="/app/study-plan"
-              />
-            </Card>
-          ) : (
-            <div className="space-y-3">
-              {todaySessions.map((session: any) => {
-                const isCompleted = session.status === 'completed';
-                const isMissed = session.status === 'missed';
+        {todaySessions.length === 0 ? (
+          <Card className="p-8 text-center border-border">
+            <EmptyState
+              icon={<Calendar className="w-8 h-8" />}
+              title="No study tasks scheduled for today"
+              description="Use the AI Study Plan to generate a daily curriculum breakdown based on your syllabus."
+              actionLabel="Go to AI Study Plan"
+              actionPath="/app/study-plan"
+            />
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {todaySessions.map((session: any) => {
+              const isCompleted = session.status === 'completed';
+              const isMissed = session.status === 'missed';
 
-                return (
-                  <Card
-                    key={session._id}
-                    className={`p-4 border transition-all ${
-                      isCompleted
-                        ? 'bg-emerald-50/30 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-900'
-                        : isMissed
-                        ? 'bg-rose-50/30 dark:bg-rose-950/10 border-rose-200 dark:border-rose-900'
-                        : 'bg-card border-border hover:border-primary-300'
-                    }`}
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="flex items-start gap-3 min-w-0">
-                        <div
-                          className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-xs shrink-0"
-                          style={{ backgroundColor: session.subjectColor || '#4f46e5' }}
+              return (
+                <Card
+                  key={session._id}
+                  className={`p-4 border transition-all ${
+                    isCompleted
+                      ? 'bg-emerald-50/20 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-900'
+                      : isMissed
+                      ? 'bg-rose-50/20 dark:bg-rose-950/10 border-rose-200 dark:border-rose-900'
+                      : 'bg-card border-border hover:border-primary-300'
+                  }`}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div
+                        className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-xs shrink-0 shadow-sm"
+                        style={{ backgroundColor: session.subjectColor || '#4f46e5' }}
+                      >
+                        <BookOpen className="w-5 h-5 text-white" />
+                      </div>
+
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <span
+                            className="px-2 py-0.5 rounded text-[10px] font-semibold text-white uppercase tracking-wider"
+                            style={{ backgroundColor: session.subjectColor || '#4f46e5' }}
+                          >
+                            {session.subjectName}
+                          </span>
+                          <Badge
+                            variant={isCompleted ? 'success' : isMissed ? 'danger' : 'info'}
+                            size="sm"
+                          >
+                            {session.status}
+                          </Badge>
+                          <Badge
+                            size="sm"
+                            variant={session.sessionType === 'revision' ? 'warning' : 'outline'}
+                          >
+                            {session.sessionType === 'revision' ? 'Revision' : 'Study'}
+                          </Badge>
+                        </div>
+
+                        <h4 className="text-sm font-semibold text-foreground truncate">
+                          {session.topicTitle}
+                        </h4>
+
+                        <p className="text-xs text-muted-foreground mt-0.5 font-mono">
+                          {new Date(session.scheduledStart).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}{' '}
+                          -{' '}
+                          {new Date(session.scheduledEnd).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}{' '}
+                          ({session.plannedMinutes} min)
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                      {!isCompleted && (
+                        <Button
+                          size="sm"
+                          onClick={() => setActiveLearningTopicId(session.topicId)}
+                          leftIcon={<Play className="w-3.5 h-3.5 text-primary-900 fill-primary-900" />}
+                          variant="white"
+                          className="font-bold text-xs"
                         >
-                          <BookOpen className="w-5 h-5 text-white" />
-                        </div>
+                          Start Learning
+                        </Button>
+                      )}
 
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            <span
-                              className="px-2 py-0.5 rounded text-[10px] font-semibold text-white uppercase tracking-wider"
-                              style={{ backgroundColor: session.subjectColor || '#4f46e5' }}
-                            >
-                              {session.subjectName}
-                            </span>
-                            <Badge variant={isCompleted ? 'success' : isMissed ? 'danger' : 'info'} size="sm">
-                              {session.status}
-                            </Badge>
-                          </div>
-
-                          <h4 className="text-sm font-semibold text-foreground truncate">
-                            {session.topicTitle}
-                          </h4>
-
-                          <p className="text-xs text-muted-foreground mt-0.5 font-mono">
-                            {new Date(session.scheduledStart).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}{' '}
-                            -{' '}
-                            {new Date(session.scheduledEnd).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}{' '}
-                            ({session.plannedMinutes} min)
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Action buttons */}
-                      <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
-                        {!isCompleted && !isMissed && (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleMarkMissed(session._id)}
-                              className="text-xs"
-                            >
-                              Missed
-                            </Button>
-                            <Button
-                              size="sm"
-                              onClick={() => handleCompleteSession(session._id)}
-                              leftIcon={<CheckCircle2 className="w-3.5 h-3.5" />}
-                              className="text-xs"
-                            >
-                              Complete
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Sidebar Widgets (4 cols): Quick Note, Recent History, Upcoming Exams */}
-        <div className="lg:col-span-4 space-y-4">
-          {/* Quick Note Creation Card */}
-          <Card className="p-4 border-border bg-gradient-to-br from-card to-primary-50/20 dark:to-primary-950/10">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5 uppercase tracking-wider">
-                <FileText className="w-3.5 h-3.5 text-primary-600" />
-                Quick Study Note
-              </h3>
-              <Link to="/app/notes" className="text-[11px] text-primary-600 hover:underline">
-                All Notes →
-              </Link>
-            </div>
-            <p className="text-xs text-muted-foreground mb-3">
-              Record a formula, proof, or key concept without leaving your dashboard.
-            </p>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setIsQuickNoteOpen(true)}
-              leftIcon={<Plus className="w-3.5 h-3.5" />}
-              className="w-full text-xs"
-            >
-              Write Quick Note
-            </Button>
-          </Card>
-
-          {/* Recent Completed Task History */}
-          <Card className="p-4 border-border">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5 uppercase tracking-wider">
-                <History className="w-3.5 h-3.5 text-emerald-600" />
-                Recent History
-              </h3>
-              <Link to="/app/history" className="text-[11px] text-primary-600 hover:underline">
-                View Log →
-              </Link>
-            </div>
-
-            {recentHistory.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-4">
-                No tasks completed yet. Complete a session to start your history.
-              </p>
-            ) : (
-              <div className="space-y-2.5">
-                {recentHistory.map((item) => (
-                  <div
-                    key={item.sessionId}
-                    onClick={() => navigate('/app/history')}
-                    className="p-2.5 rounded-xl border border-border/70 hover:bg-muted/40 transition-colors cursor-pointer text-xs"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-foreground truncate max-w-[170px]">
-                        {item.topicTitle}
-                      </span>
-                      <span className="text-[10px] font-mono text-muted-foreground">
-                        {item.actualMinutes}m
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between mt-1 text-[11px] text-muted-foreground">
-                      <span className="truncate">{item.subjectName}</span>
-                      <span className={item.isOnTime ? 'text-emerald-700 dark:text-emerald-400 font-medium' : 'text-amber-700 dark:text-amber-400 font-medium'}>
-                        {item.isOnTime ? 'On Time' : 'Late'}
-                      </span>
+                      {!isCompleted && !isMissed && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleMarkMissed(session._id)}
+                            className="text-xs"
+                          >
+                            Missed
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => handleCompleteSession(session._id)}
+                            leftIcon={<CheckCircle2 className="w-3.5 h-3.5" />}
+                            className="text-xs"
+                          >
+                            Complete
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </Card>
-
-          {/* Upcoming Exams Countdown */}
-          <Card className="p-4 border-border">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5 uppercase tracking-wider">
-                <Calendar className="w-3.5 h-3.5 text-amber-500" />
-                Upcoming Examinations
-              </h3>
-              <Link to="/app/subjects" className="text-[11px] text-primary-600 hover:underline">
-                Courses →
-              </Link>
-            </div>
-            {summary?.upcomingExams && summary.upcomingExams.length > 0 ? (
-              <div className="space-y-2">
-                {summary.upcomingExams.slice(0, 3).map((exam) => (
-                  <div
-                    key={exam.subjectId}
-                    className="p-2.5 rounded-xl bg-muted/40 border border-border flex items-center justify-between text-xs"
-                  >
-                    <div>
-                      <p className="font-semibold text-foreground">{exam.name}</p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {new Date(exam.examDate).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <span
-                      className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                        exam.daysLeft <= 3
-                          ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
-                          : 'bg-primary-50 text-primary-700 dark:bg-primary-950 dark:text-primary-300'
-                      }`}
-                    >
-                      {exam.daysLeft <= 0 ? 'Today' : `${exam.daysLeft}d left`}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground text-center py-4">
-                No exam date set.
-              </p>
-            )}
-          </Card>
-        </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Quick Note Modal */}
@@ -582,6 +556,20 @@ export const DashboardPage: React.FC = () => {
         onClose={() => setIsQuickNoteOpen(false)}
         onNoteCreated={() => fetchData()}
       />
+
+      {/* Topic Learning Workspace Modal when student clicks "Start Learning" */}
+      {activeLearningTopicId && (
+        <TopicLearningWorkspace
+          topicId={activeLearningTopicId}
+          onClose={() => {
+            setActiveLearningTopicId(null);
+            fetchData();
+          }}
+          onTopicStatusChanged={() => fetchData()}
+        />
+      )}
     </div>
   );
 };
+
+export default DashboardPage;

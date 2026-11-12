@@ -3,18 +3,14 @@ import { NavLink, Link } from 'react-router-dom';
 import {
   LayoutDashboard,
   BookOpen,
-  ListTodo,
   CalendarDays,
   Sparkles,
   BarChart3,
-  Timer,
   Settings,
   GraduationCap,
   LogOut,
   ChevronRight,
   FileText,
-  History,
-  Headphones,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.js';
 
@@ -25,17 +21,14 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
   const { user, logout } = useAuth();
 
+  // Exactly the 7 core navigation items requested for clean student usability
   const navItems = [
     { name: 'Dashboard', path: '/app/dashboard', icon: LayoutDashboard },
-    { name: 'Subjects', path: '/app/subjects', icon: BookOpen },
-    { name: 'Topics', path: '/app/topics', icon: ListTodo },
+    { name: 'My Subjects', path: '/app/subjects', icon: BookOpen },
     { name: 'Timetable', path: '/app/timetable', icon: CalendarDays },
-    { name: 'Study Plan', path: '/app/study-plan', icon: Sparkles },
-    { name: 'Notes', path: '/app/notes', icon: FileText },
-    { name: 'History', path: '/app/history', icon: History },
-    { name: 'Study Music', path: '/app/music', icon: Headphones },
+    { name: 'AI Study Plan', path: '/app/study-plan', icon: Sparkles },
+    { name: 'My Notes', path: '/app/notes', icon: FileText },
     { name: 'Progress', path: '/app/progress', icon: BarChart3 },
-    { name: 'Focus Mode', path: '/app/focus', icon: Timer },
     { name: 'Settings', path: '/app/settings', icon: Settings },
   ];
 
@@ -52,7 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
               StudyOS
             </span>
             <span className="text-[10px] text-muted-foreground uppercase tracking-wider block font-medium">
-              Smart Academic OS
+              Academic Productivity
             </span>
           </div>
         </div>
@@ -60,7 +53,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
         {/* Navigation items */}
         <nav className="p-4 space-y-1">
           <div className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Academic Workspace
+            Navigation
           </div>
           {navItems.map((item) => {
             const Icon = item.icon;
