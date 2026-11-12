@@ -125,9 +125,18 @@ export const DashboardPage: React.FC = () => {
             </p>
           </div>
 
-          <div className="pt-2">
+          <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
+            <Link to="/app/onboarding">
+              <Button
+                size="lg"
+                className="bg-primary-600 hover:bg-primary-700 text-white shadow-md font-bold"
+                leftIcon={<Sparkles className="w-4 h-4" />}
+              >
+                Build Workspace with AI Assistant
+              </Button>
+            </Link>
             <Link to="/app/subjects?action=new">
-              <Button size="lg" leftIcon={<Plus className="w-4 h-4" />}>
+              <Button size="lg" variant="outline" leftIcon={<Plus className="w-4 h-4" />}>
                 Add Your First Subject
               </Button>
             </Link>

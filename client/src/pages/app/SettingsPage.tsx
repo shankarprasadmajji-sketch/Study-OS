@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
   User,
   Clock,
@@ -13,6 +14,7 @@ import {
   Plus,
   Trash2,
   Lock,
+  Sparkles,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.js';
 import { useTheme } from '../../context/ThemeContext.js';
@@ -356,6 +358,28 @@ export const SettingsPage: React.FC = () => {
             </Button>
           </div>
         </form>
+      </Card>
+
+      {/* AI Academic Workspace Generator */}
+      <Card className="border-primary-500/30 bg-gradient-to-r from-card to-primary-50/20 dark:to-primary-950/20">
+        <div className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-200 flex items-center justify-center shrink-0">
+              <Sparkles className="w-5 h-5 text-primary-600" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-foreground">AI Academic Workspace Generator</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Have a new learning goal or exam coming up? Re-run the conversational AI Assistant to generate a fresh curriculum, timetable, and topic roadmap.
+              </p>
+            </div>
+          </div>
+          <Link to="/app/onboarding">
+            <Button size="sm" leftIcon={<Sparkles className="w-3.5 h-3.5" />} className="bg-primary-600 hover:bg-primary-700 text-white shrink-0">
+              Launch AI Assistant
+            </Button>
+          </Link>
+        </div>
       </Card>
 
       {/* Weekly Study Availability Windows */}

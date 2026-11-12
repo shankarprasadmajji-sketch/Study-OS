@@ -298,5 +298,75 @@ describe('StudyOS AI-Powered Learning Assistant & Workspace Suite', () => {
       expect(res.body.progress.totalQuizAttempts).toBeGreaterThanOrEqual(1);
       expect(res.body.progress.averageQuizAccuracy).toBe(100);
     });
+
+    it('POST /api/v1/ai/suggest-syllabus proposes structured curriculum with disclaimer and feasibility', async () => {
+      const res = await request(app)
+        .post('/api/v1/ai/suggest-syllabus')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({
+          learningGoal: 'Programming and technical skills',
+          customGoal: 'Learn Python from zero in 30 days',
+          educationLevel: 'Undergraduate',
+          academicYear: 'Year 2',
+          knowledgeLevel: 'beginner',
+          dailyHours: 3,
+          daysOrWeeks: '30 days',
+          learningPreferences: ['videos', 'notes', 'flashcards', 'quizzes'],
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.proposal).toBeDefined();
+      expect(res.body.proposal.disclaimer).toContain('AI-suggested curriculum proposal');
+      expect(res.body.proposal.subjects.length).toBeGreaterThanOrEqual(1);
+      expect(res.body.proposal.subjects[0].units.length).toBeGreaterThanOrEqual(1);
+      expect(res.body.proposal.estimatedTotalTopics).toBeGreaterThanOrEqual(1);
+      expect(res.body.proposal.feasibilityAssessment.status).toBeDefined();
+    });
+
+    it('POST /api/v1/ai/generate-workspace creates complete academic workspace in database', async () => {
+      // 1. Get proposal
+      const propRes = await request(app)
+        .post('/api/v1/ai/suggest-syllabus')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({
+          learningGoal: 'School subjects',
+          subjectNames: ['Physics', 'Mathematics'],
+          educationLevel: 'School',
+          knowledgeLevel: 'intermediate',
+          dailyHours: 2,
+        });
+
+      expect(propRes.status).toBe(200);
+      const proposal = propRes.body.proposal;
+
+      // 2. Generate complete workspace
+      const genRes = await request(app)
+        .post('/api/v1/ai/generate-workspace')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({
+          learningGoal: 'School subjects - Physics & Math',
+          educationLevel: 'School',
+          academicYear: '10th Grade',
+          dailyHours: 2,
+          learningPreferences: ['notes', 'quizzes'],
+          subjects: proposal.subjects,
+        });
+
+      expect(genRes.status).toBe(201);
+      expect(genRes.body.success).toBe(true);
+      expect(genRes.body.workspace.subjectsCount).toBeGreaterThanOrEqual(2);
+      expect(genRes.body.workspace.topicsCount).toBeGreaterThanOrEqual(2);
+      expect(genRes.body.workspace.sessionsCount).toBeGreaterThanOrEqual(1);
+      expect(genRes.body.workspace.planId).toBeDefined();
+
+      // Verify user onboarding completed in auth/me
+      const meRes = await request(app)
+        .get('/api/v1/auth/me')
+        .set('Authorization', `Bearer ${authToken}`);
+      expect(meRes.status).toBe(200);
+      expect(meRes.body.user.onboardingCompleted).toBe(true);
+      expect(meRes.body.user.educationLevel).toBe('School');
+    });
   });
 });

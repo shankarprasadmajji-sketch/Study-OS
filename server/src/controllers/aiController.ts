@@ -1,14 +1,273 @@
 import { Response } from 'express';
 import { z } from 'zod';
-import { isBefore } from 'date-fns';
+import { isBefore, addDays } from 'date-fns';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { dataStore } from '../services/dataStore.js';
 import { aiService } from '../services/aiService.js';
 import { videoService } from '../services/videoService.js';
+import { generateStudyPlan } from '../services/scheduler.js';
 import { isDateOnlyInPast, toDate } from '../utils/dateValidation.js';
 import { enrichStudySessions } from '../utils/sessionEnricher.js';
 
 export const aiController = {
+  /**
+   * Propose AI Syllabus Curriculum for Onboarding
+   */
+  async suggestSyllabus(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const {
+        learningGoal,
+        customGoal,
+        educationLevel,
+        academicYear,
+        subjectNames,
+        syllabusText,
+        knowledgeLevel,
+        knowledgeSummary,
+        dailyHours,
+        daysOrWeeks,
+        targetDate,
+        examDate,
+        learningPreferences,
+      } = req.body;
+
+      if (!learningGoal && !customGoal) {
+        res.status(400).json({
+          success: false,
+          error: 'Please provide a learning goal or what you would like to learn.',
+        });
+        return;
+      }
+
+      const proposal = await aiService.suggestSyllabus({
+        learningGoal: learningGoal || 'Custom learning goal',
+        customGoal,
+        educationLevel: educationLevel || 'Undergraduate',
+        academicYear,
+        subjectNames: Array.isArray(subjectNames) ? subjectNames : subjectNames ? [subjectNames] : [],
+        syllabusText,
+        knowledgeLevel: knowledgeLevel || 'beginner',
+        knowledgeSummary,
+        dailyHours: Number(dailyHours) || 3,
+        daysOrWeeks,
+        targetDate,
+        examDate,
+        learningPreferences: Array.isArray(learningPreferences) ? learningPreferences : [],
+      });
+
+      res.status(200).json({
+        success: true,
+        proposal,
+      });
+    } catch (err: any) {
+      console.error('[AIController] suggestSyllabus error:', err);
+      res.status(500).json({
+        success: false,
+        error: err.message || 'Failed to suggest syllabus curriculum.',
+      });
+    }
+  },
+
+  /**
+   * Generate Complete Academic Workspace from Onboarding Confirmed Plan
+   */
+  async generateWorkspace(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user!.userId;
+      const {
+        learningGoal,
+        educationLevel,
+        academicYear,
+        dailyHours,
+        targetDate,
+        examDate,
+        learningPreferences,
+        subjects,
+      } = req.body;
+
+      if (!Array.isArray(subjects) || subjects.length === 0) {
+        res.status(400).json({
+          success: false,
+          error: 'Please confirm at least one subject with syllabus units to generate your workspace.',
+        });
+        return;
+      }
+
+      // 1. Update user profile & preferences
+      const hours = Number(dailyHours) || 3;
+      await dataStore.updateUser(userId, {
+        educationLevel: educationLevel || 'Undergraduate',
+        academicYear: academicYear || 'General',
+        onboardingCompleted: true,
+        preferences: {
+          preferredSessionMinutes: 45,
+          breakMinutes: 10,
+          dailyTargetHours: hours,
+          reminderNotifications: true,
+        },
+      });
+
+      // 2. Setup Availability for student based on daily study hours
+      const startHour = 9;
+      const endHour = Math.min(23, startHour + hours);
+      const startPad = startHour.toString().padStart(2, '0') + ':00';
+      const endPad = endHour.toString().padStart(2, '0') + ':00';
+      const slots = [1, 2, 3, 4, 5, 6].map((dayOfWeek) => ({
+        dayOfWeek,
+        startTime: startPad,
+        endTime: endPad,
+        enabled: true,
+      }));
+      slots.push({
+        dayOfWeek: 0,
+        startTime: '10:00',
+        endTime: '12:00',
+        enabled: hours > 3,
+      });
+      await dataStore.replaceUserAvailability(userId, slots);
+
+      // 3. Create Subjects and Topics in MongoDB
+      const colors = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6'];
+      const createdSubjects: any[] = [];
+      const createdTopics: any[] = [];
+      const createdNotes: any[] = [];
+
+      let topicPositionCounter = 1;
+
+      for (let sIdx = 0; sIdx < subjects.length; sIdx++) {
+        const s = subjects[sIdx];
+        const subjectDoc = await dataStore.createSubject({
+          userId,
+          name: s.name,
+          code: s.code || s.name.replace(/[^A-Za-z]/g, '').slice(0, 4).toUpperCase() || `S${sIdx + 1}`,
+          importance: s.importance || 4,
+          color: s.color || colors[sIdx % colors.length],
+          description: s.description || `${s.name} curriculum`,
+          examDate: s.examDate ? toDate(s.examDate) : examDate ? toDate(examDate) : null,
+        });
+        createdSubjects.push(subjectDoc);
+
+        const units = Array.isArray(s.units) ? s.units : [];
+        for (const unit of units) {
+          const unitTopics = Array.isArray(unit.topics) ? unit.topics : [];
+          for (const t of unitTopics) {
+            const topicDoc = await dataStore.createTopic({
+              userId,
+              subjectId: subjectDoc._id,
+              title: t.title,
+              description: t.description || `${unit.unitTitle}: ${t.title}`,
+              difficulty: t.difficulty || 'medium',
+              importance: t.importance || 3,
+              estimatedMinutes: t.estimatedMinutes || 45,
+              position: topicPositionCounter++,
+              status: 'not_started',
+            });
+            createdTopics.push(topicDoc);
+
+            // Create initial Notes if student prefers notes
+            try {
+              const noteDoc = await dataStore.createNote({
+                userId,
+                subjectId: subjectDoc._id,
+                topicId: topicDoc._id,
+                title: `${t.title} — Key Concepts & Summary`,
+                content: `# ${t.title}\n\n**Subject:** ${subjectDoc.name}\n**Unit:** ${unit.unitTitle}\n\n## Overview\n${t.description || 'Master fundamental concepts and principles.'}\n\n## Learning Objectives\n${(t.learningObjectives || ['Understand core definitions', 'Apply concepts to practical problems']).map((o: string) => `- ${o}`).join('\n')}\n\n## Summary & Notes\n- Review definitions and key terminology.\n- Practice topic quiz and active recall flashcards.`,
+                isPinned: false,
+                tags: [subjectDoc.name, 'AI Workspace'],
+              });
+              createdNotes.push(noteDoc);
+            } catch {
+              // Non-critical if note fails
+            }
+          }
+        }
+      }
+
+      // 4. Generate Study Sessions using scheduler
+      const tomorrow = addDays(new Date(), 1);
+      const targetEndDate = targetDate ? toDate(targetDate) : addDays(tomorrow, 30);
+      const sDate = isBefore(targetEndDate, tomorrow) ? addDays(tomorrow, 14) : targetEndDate;
+
+      const schedulerSubjects = createdSubjects.map((s) => ({
+        id: s._id.toString(),
+        name: s.name,
+        code: s.code,
+        importance: s.importance,
+        examDate: s.examDate,
+      }));
+
+      const schedulerTopics = createdTopics.map((t) => ({
+        id: t._id.toString(),
+        subjectId: t.subjectId.toString(),
+        title: t.title,
+        difficulty: t.difficulty,
+        importance: t.importance,
+        estimatedMinutes: t.estimatedMinutes,
+        status: t.status,
+      }));
+
+      const planResult = generateStudyPlan({
+        subjects: schedulerSubjects,
+        topics: schedulerTopics,
+        availability: slots,
+        startDate: tomorrow,
+        endDate: sDate,
+        preferredSessionMinutes: 45,
+        breakMinutes: 10,
+        referenceDate: tomorrow,
+      });
+
+      // 5. Create StudyPlan in database
+      const planDoc = await dataStore.createStudyPlan({
+        userId,
+        name: `${learningGoal || 'Personalized'} Study Plan`,
+        startDate: tomorrow,
+        endDate: sDate,
+        status: 'active',
+        algorithmVersion: '2.0.0-ai',
+        feasibility: planResult.feasibility,
+      });
+
+      // 6. Create StudySessions from scheduled proposals
+      const createdSessions: any[] = [];
+      for (const proposal of planResult.sessions) {
+        const sessionDoc = await dataStore.createStudySession({
+          userId,
+          planId: planDoc._id,
+          subjectId: proposal.subjectId,
+          topicId: proposal.topicId,
+          scheduledStart: proposal.scheduledStart,
+          scheduledEnd: proposal.scheduledEnd,
+          plannedMinutes: proposal.plannedMinutes,
+          actualMinutes: 0,
+          status: 'scheduled',
+          sessionType: proposal.sessionType || 'study',
+          notes: proposal.priorityExplanation || '',
+        });
+        createdSessions.push(sessionDoc);
+      }
+
+      res.status(201).json({
+        success: true,
+        message: 'Personalized academic workspace generated successfully!',
+        workspace: {
+          subjectsCount: createdSubjects.length,
+          topicsCount: createdTopics.length,
+          sessionsCount: createdSessions.length,
+          notesCount: createdNotes.length,
+          planId: planDoc._id,
+          learningGoal,
+          feasibility: planResult.feasibility,
+        },
+      });
+    } catch (err: any) {
+      console.error('[AIController] generateWorkspace error:', err);
+      res.status(500).json({
+        success: false,
+        error: err.message || 'Failed to generate academic workspace.',
+      });
+    }
+  },
   /**
    * Check AI configuration status
    */

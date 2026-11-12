@@ -1,14 +1,121 @@
 import React from 'react';
-import { describe, it, expect } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { OnboardingPage } from '../pages/app/OnboardingPage.js';
 import { DashboardPage } from '../pages/app/DashboardPage.js';
 import { AuthProvider } from '../context/AuthContext.js';
 import { ThemeProvider } from '../context/ThemeContext.js';
+import * as clientModule from '../api/client.js';
 
-describe('StudyOS — Simplified Onboarding & Dashboard Workspace', () => {
-  it('does NOT display Timezone input in Academic Profile (Step 2)', async () => {
+describe('StudyOS — AI Onboarding Assistant & Workspace Generation Suite', () => {
+  const mockUser = {
+    _id: 'user_ai_1',
+    name: 'Ada Lovelace',
+    email: 'ada@example.com',
+    educationLevel: 'Undergraduate',
+    academicYear: 'Year 2',
+    onboardingCompleted: false,
+    preferences: {
+      preferredSessionMinutes: 45,
+      breakMinutes: 10,
+      dailyTargetHours: 3,
+      reminderNotifications: true,
+    },
+  };
+
+  const mockProposal = {
+    disclaimer: 'AI-suggested curriculum proposal for study planning. Please review, adjust, or confirm before generating your workspace.',
+    subjects: [
+      {
+        name: 'Python Programming',
+        code: 'PY101',
+        importance: 5,
+        color: '#6366f1',
+        description: 'Core syntax and problem solving',
+        units: [
+          {
+            unitTitle: 'Unit 1: Flow Control & Syntax',
+            topics: [
+              {
+                title: 'Variables & Data Types',
+                description: 'Memory allocation and types',
+                difficulty: 'easy',
+                importance: 4,
+                estimatedMinutes: 45,
+              },
+              {
+                title: 'Loops & Iterations',
+                description: 'While and for loop patterns',
+                difficulty: 'medium',
+                importance: 5,
+                estimatedMinutes: 45,
+              },
+            ],
+          },
+        ],
+      },
+    ],
+    estimatedTotalTopics: 2,
+    estimatedTotalHours: 1.5,
+    feasibilityAssessment: {
+      status: 'feasible',
+      score: 95,
+      explanation: 'Workload easily fits your daily study allocation.',
+    },
+  };
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    localStorage.clear();
+
+    vi.spyOn(clientModule, 'getApiToken').mockReturnValue('mock_token');
+    vi.spyOn(clientModule, 'fetchHealth').mockResolvedValue({
+      status: 'ok',
+      service: 'studyos-backend',
+      version: '1.0.0',
+      timestamp: new Date().toISOString(),
+    });
+
+    vi.spyOn(clientModule, 'apiRequest').mockImplementation(async (path, options) => {
+      if (path === '/auth/me') {
+        return { user: mockUser };
+      }
+      if (path === '/ai/suggest-syllabus') {
+        return { success: true, proposal: mockProposal };
+      }
+      if (path === '/ai/generate-workspace') {
+        return {
+          success: true,
+          message: 'Workspace generated',
+          workspace: {
+            subjectsCount: 1,
+            topicsCount: 2,
+            sessionsCount: 3,
+            planId: 'plan_123',
+          },
+        };
+      }
+      if (path === '/subjects') return { subjects: [] };
+      if (path === '/topics') return { topics: [] };
+      if (path === '/study-sessions') return { sessions: [] };
+      if (path === '/progress/summary') {
+        return {
+          summary: {
+            totalPlannedSessions: 0,
+            completedSessions: 0,
+            accuracyPercent: null,
+            streakDays: 0,
+            syllabusCompletedTopics: 0,
+            syllabusTotalTopics: 0,
+          },
+        };
+      }
+      return {};
+    });
+  });
+
+  const renderOnboarding = () =>
     render(
       <BrowserRouter>
         <ThemeProvider>
@@ -19,49 +126,107 @@ describe('StudyOS — Simplified Onboarding & Dashboard Workspace', () => {
       </BrowserRouter>
     );
 
-    fireEvent.click(screen.getByText('Begin Setup'));
+  it('renders welcoming AI Assistant header and supporting text', async () => {
+    renderOnboarding();
 
-    expect(screen.getByText('Your Academic Profile')).toBeInTheDocument();
-    expect(screen.getByText('Full Name')).toBeInTheDocument();
-    expect(screen.getByText('Education Level')).toBeInTheDocument();
-    expect(screen.getByText('Current Academic Year / Semester')).toBeInTheDocument();
+    expect(screen.getByText('What would you like to learn today?')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Tell us your learning goal. StudyOS will build a personalized learning experience for you.'
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByText('Question 1')).toBeInTheDocument();
+    expect(screen.getByText('What do you want to learn?')).toBeInTheDocument();
+  });
+
+  it('does NOT display Timezone input at any point during onboarding', async () => {
+    renderOnboarding();
 
     expect(screen.queryByLabelText(/timezone/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/^timezone$/i)).not.toBeInTheDocument();
+
+    // Advance to Question 2
+    fireEvent.click(screen.getByText('Continue'));
+    expect(screen.getByText('Question 2')).toBeInTheDocument();
+    expect(screen.queryByLabelText(/timezone/i)).not.toBeInTheDocument();
   });
 
-  it('navigates directly from Availability (Step 3) to Review & Finalize (Step 4 of 4) without asking for subjects', async () => {
-    render(
-      <BrowserRouter>
-        <ThemeProvider>
-          <AuthProvider>
-            <OnboardingPage />
-          </AuthProvider>
-        </ThemeProvider>
-      </BrowserRouter>
-    );
+  it('steps through all 6 conversational questions to the Summary & Review workspace', async () => {
+    renderOnboarding();
 
-    // Step 1 -> Step 2
-    fireEvent.click(screen.getByText('Begin Setup'));
+    // Question 1: Learning Goal -> Continue
+    expect(screen.getByText('Question 1')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Continue'));
 
-    // Step 2 -> Step 3
-    fireEvent.click(screen.getByText('Continue to Availability'));
-    expect(screen.getByText('Weekly Study Availability')).toBeInTheDocument();
+    // Question 2: Education Level -> Continue
+    expect(screen.getByText('Question 2')).toBeInTheDocument();
+    expect(screen.getByText('What is your current education level?')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Continue'));
 
-    // Step 3 -> Step 4 (Review)
-    fireEvent.click(screen.getByText('Review & Confirm'));
+    // Question 3: Subjects & Syllabus Details -> Continue
+    expect(screen.getByText('Question 3')).toBeInTheDocument();
+    expect(screen.getByText('Subjects & Syllabus Details')).toBeInTheDocument();
+    expect(screen.getByText('Let AI Create Syllabus')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Continue'));
 
-    // Step 4 is Review & Finalize
-    expect(screen.getByText('Everything Looks Ready!')).toBeInTheDocument();
-    expect(screen.getByText('Launch StudyOS Workspace')).toBeInTheDocument();
+    // Question 4: Current Knowledge -> Continue
+    expect(screen.getByText('Question 4')).toBeInTheDocument();
+    expect(screen.getByText('What is your current knowledge level?')).toBeInTheDocument();
+    expect(screen.getByText('Beginner')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Continue'));
 
-    // Verify Subjects & Syllabus step does not exist in onboarding
-    expect(screen.queryByText('Subjects & Syllabus Topics')).not.toBeInTheDocument();
-    expect(screen.queryByText('Course Code')).not.toBeInTheDocument();
-    expect(screen.queryByText('Computer Architecture')).not.toBeInTheDocument();
+    // Question 5: Time Availability & Deadlines -> Continue
+    expect(screen.getByText('Question 5')).toBeInTheDocument();
+    expect(screen.getByText('Time Availability & Deadlines')).toBeInTheDocument();
+    expect(screen.getByText('3 Hours / day')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Continue'));
+
+    // Question 6: Learning Preferences -> Review
+    expect(screen.getByText('Question 6')).toBeInTheDocument();
+    expect(screen.getByText('How do you prefer learning?')).toBeInTheDocument();
+    expect(screen.getByText('Video Lessons')).toBeInTheDocument();
+    expect(screen.getByText('Simple Explanations & Notes')).toBeInTheDocument();
+    expect(screen.getByText('Flashcards')).toBeInTheDocument();
+    expect(screen.getByText('Quizzes & Tests')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Review Learning Summary'));
+
+    // Review & Confirmation Screen
+    await waitFor(() => {
+      expect(screen.getAllByText('Generate My Study Plan').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('Edit My Answers').length).toBeGreaterThanOrEqual(1);
+    });
+
+    expect(screen.getByText('Python Programming')).toBeInTheDocument();
+    expect(screen.getByText('Unit 1: Flow Control & Syntax')).toBeInTheDocument();
+    expect(screen.getByText('Variables & Data Types')).toBeInTheDocument();
+    expect(screen.getByText('Loops & Iterations')).toBeInTheDocument();
   });
 
-  it('renders Dashboard with clean empty state when no subjects have been added', async () => {
+  it('triggers workspace generation when confirming proposed plan', async () => {
+    renderOnboarding();
+
+    // Fast-forward to Question 6
+    fireEvent.click(screen.getByText('Continue')); // Q1 -> Q2
+    fireEvent.click(screen.getByText('Continue')); // Q2 -> Q3
+    fireEvent.click(screen.getByText('Continue')); // Q3 -> Q4
+    fireEvent.click(screen.getByText('Continue')); // Q4 -> Q5
+    fireEvent.click(screen.getByText('Continue')); // Q5 -> Q6
+    fireEvent.click(screen.getByText('Review Learning Summary')); // Q6 -> Review
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Generate My Study Plan').length).toBeGreaterThanOrEqual(1);
+    });
+
+    const generateButtons = screen.getAllByText('Generate My Study Plan');
+    fireEvent.click(generateButtons[0]);
+
+    await waitFor(() => {
+      expect(clientModule.apiRequest).toHaveBeenCalledWith('/ai/generate-workspace', expect.any(Object));
+    });
+  });
+
+  it('renders Dashboard with clean empty state when no subjects exist yet', async () => {
     render(
       <BrowserRouter>
         <ThemeProvider>

@@ -6,6 +6,58 @@ export interface AIStatus {
   message: string;
 }
 
+export interface SuggestSyllabusInputs {
+  learningGoal: string;
+  customGoal?: string;
+  educationLevel: string;
+  academicYear?: string;
+  subjectNames?: string[];
+  syllabusText?: string;
+  knowledgeLevel: 'beginner' | 'intermediate' | 'advanced';
+  knowledgeSummary?: string;
+  dailyHours: number;
+  daysOrWeeks?: string;
+  targetDate?: string;
+  examDate?: string;
+  learningPreferences?: string[];
+}
+
+export interface ProposedTopic {
+  title: string;
+  description: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  importance: number;
+  estimatedMinutes: number;
+  learningObjectives?: string[];
+}
+
+export interface ProposedUnit {
+  unitTitle: string;
+  topics: ProposedTopic[];
+}
+
+export interface ProposedSubject {
+  name: string;
+  code?: string;
+  importance: number;
+  color: string;
+  description?: string;
+  examDate?: string | null;
+  units: ProposedUnit[];
+}
+
+export interface SyllabusProposalResult {
+  disclaimer: string;
+  subjects: ProposedSubject[];
+  estimatedTotalTopics: number;
+  estimatedTotalHours: number;
+  feasibilityAssessment: {
+    status: 'feasible' | 'tight' | 'infeasible';
+    score: number;
+    explanation: string;
+  };
+}
+
 export interface StudentPlanInputs {
   studentProfile: {
     name: string;
@@ -268,6 +320,412 @@ export const aiService = {
     }
 
     throw new Error('AI_KEY_NOT_CONFIGURED');
+  },
+
+  /**
+   * 0. AI Onboarding Assistant: Propose Curriculum & Syllabus Breakdown
+   */
+  async suggestSyllabus(inputs: SuggestSyllabusInputs): Promise<SyllabusProposalResult> {
+    const status = this.getAIStatus();
+    if (status.configured) {
+      try {
+        const systemPrompt = `You are the StudyOS AI Academic Curriculum Architect.
+A student needs a realistic, high-yield study curriculum designed for their learning goal.
+RULES:
+1. If the student provided syllabus text, extract subjects, units, chapters, and topics directly from that text.
+2. If no syllabus was provided, propose a sound, realistic curriculum suited to their goal and knowledge level.
+3. Structure each subject into 2 to 4 logical Units.
+4. Each Unit must contain 2 to 4 actionable topics with estimatedMinutes (30 to 60 mins each), difficulty ("easy" | "medium" | "hard"), importance (1 to 5), and 2-3 learningObjectives.
+5. Provide a clear disclaimer: "AI-suggested curriculum proposal for study planning. Please review, adjust, or confirm before generating your workspace."
+6. Provide a realistic feasibility assessment:
+   - status: "feasible" | "tight" | "infeasible"
+   - score: 0 to 100
+   - explanation: Clear assessment of whether the workload fits their daily hours and deadline.
+Output strictly valid JSON with this schema:
+{
+  "disclaimer": "AI-suggested curriculum proposal for study planning. Please review, adjust, or confirm before generating your workspace.",
+  "subjects": [
+    {
+      "name": "Subject Name",
+      "code": "SUBJ",
+      "importance": 5,
+      "color": "#6366f1",
+      "description": "Overview of subject",
+      "units": [
+        {
+          "unitTitle": "Unit 1: Fundamentals",
+          "topics": [
+            {
+              "title": "Topic Title",
+              "description": "What the student will learn",
+              "difficulty": "easy",
+              "importance": 4,
+              "estimatedMinutes": 45,
+              "learningObjectives": ["Objective 1", "Objective 2"]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "estimatedTotalTopics": 12,
+  "estimatedTotalHours": 10,
+  "feasibilityAssessment": {
+    "status": "feasible",
+    "score": 95,
+    "explanation": "Workload fits comfortably within your daily study allocation."
+  }
+}`;
+
+        const userPrompt = `Student Onboarding Inputs:
+Learning Goal: ${inputs.learningGoal}
+Custom Goal / Notes: ${inputs.customGoal || 'None'}
+Education Level: ${inputs.educationLevel} (${inputs.academicYear || 'General'})
+Student Specified Subjects: ${inputs.subjectNames?.join(', ') || 'Not specified - propose suitable subjects'}
+Syllabus Content: ${inputs.syllabusText || 'None provided - propose curriculum'}
+Current Knowledge: ${inputs.knowledgeLevel} (${inputs.knowledgeSummary || 'Starting at this level'})
+Daily Study Time: ${inputs.dailyHours} hours/day
+Timeframe / Deadline: ${inputs.daysOrWeeks || inputs.targetDate || '30 days'}
+Exam Date: ${inputs.examDate || 'None'}
+Learning Preferences: ${inputs.learningPreferences?.join(', ') || 'All formats'}`;
+
+        const result = await this.callAIJson<SyllabusProposalResult>(systemPrompt, userPrompt);
+        if (result && Array.isArray(result.subjects) && result.subjects.length > 0) {
+          result.disclaimer =
+            'AI-suggested curriculum proposal for study planning. Please review, adjust, or confirm before generating your workspace.';
+          return result;
+        }
+      } catch (err) {
+        console.warn('[AIService] Live AI suggestSyllabus call failed, utilizing intelligent fallback curriculum generator:', err);
+      }
+    }
+
+    // Intelligent Fallback Curriculum Generator
+    return this.generateFallbackCurriculum(inputs);
+  },
+
+  /**
+   * Helper: Generate structured curriculum when AI key is unavailable or for instant templates
+   */
+  generateFallbackCurriculum(inputs: SuggestSyllabusInputs): SyllabusProposalResult {
+    const goalText = `${inputs.learningGoal} ${inputs.customGoal || ''} ${inputs.subjectNames?.join(' ') || ''}`.toLowerCase();
+    const colors = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
+
+    let subjects: ProposedSubject[] = [];
+
+    // Case 1: Custom syllabus text provided by student
+    if (inputs.syllabusText && inputs.syllabusText.trim().length > 20) {
+      const rawLines = inputs.syllabusText
+        .split('\n')
+        .map((l) => l.trim())
+        .filter((l) => l.length > 0);
+
+      const parsedSubjectName =
+        inputs.subjectNames?.[0] ||
+        (inputs.customGoal ? inputs.customGoal.trim() : 'Academic Curriculum');
+
+      let currentUnitTitle = 'Unit 1: Core Syllabus';
+      let currentTopics: ProposedTopic[] = [];
+      const units: ProposedUnit[] = [];
+
+      rawLines.forEach((line) => {
+        const clean = line.replace(/^[•\-*\d.]+\s*/, '').trim();
+        if (/^(unit|chapter|module|section|part)\b/i.test(line)) {
+          if (currentTopics.length > 0) {
+            units.push({ unitTitle: currentUnitTitle, topics: currentTopics });
+            currentTopics = [];
+          }
+          currentUnitTitle = clean;
+        } else if (clean.length > 3) {
+          currentTopics.push({
+            title: clean.slice(0, 80),
+            description: `Curriculum topic from student syllabus: ${clean}`,
+            difficulty: inputs.knowledgeLevel === 'beginner' ? 'easy' : 'medium',
+            importance: 4,
+            estimatedMinutes: 45,
+            learningObjectives: [`Master conceptual foundations of ${clean}`, `Solve practical exercise on ${clean}`],
+          });
+        }
+      });
+
+      if (currentTopics.length > 0) {
+        units.push({ unitTitle: currentUnitTitle, topics: currentTopics });
+      }
+
+      subjects.push({
+        name: parsedSubjectName,
+        code: parsedSubjectName.replace(/[^A-Za-z]/g, '').slice(0, 4).toUpperCase() || 'SYLL',
+        importance: 5,
+        color: colors[0],
+        description: 'Syllabus extracted directly from student document and structured into learning units.',
+        examDate: inputs.examDate || null,
+        units: units.length > 0 ? units : [
+          {
+            unitTitle: 'Unit 1: Foundational Topics',
+            topics: [
+              {
+                title: 'Introduction & Scope',
+                description: 'Foundational framework and learning scope',
+                difficulty: 'easy',
+                importance: 4,
+                estimatedMinutes: 45,
+              },
+            ],
+          },
+        ],
+      });
+    }
+    // Case 2: Programming / Technical Skills / Python
+    else if (goalText.includes('python') || goalText.includes('program') || goalText.includes('code') || goalText.includes('develop')) {
+      const isPython = goalText.includes('python');
+      const subjName = isPython ? 'Python Programming' : 'Modern Software Development';
+
+      subjects = [
+        {
+          name: subjName,
+          code: isPython ? 'PY101' : 'CS101',
+          importance: 5,
+          color: colors[0],
+          description: isPython
+            ? 'From zero to proficient Python developer with problem solving and syntax mastery.'
+            : 'Software programming foundations, clean syntax, and practical problem solving.',
+          examDate: inputs.examDate || null,
+          units: [
+            {
+              unitTitle: 'Unit 1: Language Syntax & Flow Control',
+              topics: [
+                {
+                  title: 'Variables, Expressions & Data Types',
+                  description: 'Integers, floats, strings, booleans, and variable assignment mechanics',
+                  difficulty: 'easy',
+                  importance: 5,
+                  estimatedMinutes: 45,
+                  learningObjectives: ['Understand memory storage and type inference', 'Perform type conversions safely'],
+                },
+                {
+                  title: 'Conditional Statements & Branching',
+                  description: 'If-elif-else logic, logical operators, and flow control',
+                  difficulty: 'easy',
+                  importance: 4,
+                  estimatedMinutes: 45,
+                  learningObjectives: ['Construct multi-branch decision trees', 'Avoid redundant Boolean checks'],
+                },
+                {
+                  title: 'Loops & Iterations',
+                  description: 'For and while loops, ranges, break, continue, and loop patterns',
+                  difficulty: 'medium',
+                  importance: 5,
+                  estimatedMinutes: 50,
+                  learningObjectives: ['Write clean iterations over sequences', 'Implement accumulation patterns'],
+                },
+              ],
+            },
+            {
+              unitTitle: 'Unit 2: Data Structures & Collections',
+              topics: [
+                {
+                  title: 'Lists, Tuples & Slicing',
+                  description: 'Indexed sequences, immutability, slicing syntax, and list comprehensions',
+                  difficulty: 'medium',
+                  importance: 5,
+                  estimatedMinutes: 50,
+                  learningObjectives: ['Master slice notation [start:stop:step]', 'Leverage fast list comprehensions'],
+                },
+                {
+                  title: 'Dictionaries & Sets',
+                  description: 'Key-value associative mapping, hash tables, set operations, and uniqueness',
+                  difficulty: 'medium',
+                  importance: 5,
+                  estimatedMinutes: 50,
+                  learningObjectives: ['Perform O(1) dictionary lookups', 'Implement frequency counting algorithms'],
+                },
+              ],
+            },
+            {
+              unitTitle: 'Unit 3: Functions, Modules & Real-World Projects',
+              topics: [
+                {
+                  title: 'Modular Functions & Scope',
+                  description: 'Parameters, default arguments, return values, and variable scope',
+                  difficulty: 'medium',
+                  importance: 4,
+                  estimatedMinutes: 45,
+                  learningObjectives: ['Write reusable, testable functions', 'Understand local vs global scope'],
+                },
+                {
+                  title: 'Object-Oriented Programming (OOP)',
+                  description: 'Classes, instances, attributes, methods, and inheritance',
+                  difficulty: 'hard',
+                  importance: 5,
+                  estimatedMinutes: 60,
+                  learningObjectives: ['Design modular domain models', 'Encapsulate state and behavior'],
+                },
+              ],
+            },
+          ],
+        },
+      ];
+    }
+    // Case 3: Competitive Exam / Aptitude
+    else if (goalText.includes('competitive') || goalText.includes('exam') || goalText.includes('jee') || goalText.includes('gate') || goalText.includes('gre')) {
+      subjects = [
+        {
+          name: 'Quantitative Aptitude & Problem Solving',
+          code: 'QUANT',
+          importance: 5,
+          color: colors[0],
+          description: 'High-speed mathematical methods, arithmetic, algebra, and geometry.',
+          examDate: inputs.examDate || null,
+          units: [
+            {
+              unitTitle: 'Unit 1: Number Systems & Arithmetic',
+              topics: [
+                {
+                  title: 'Percentages, Ratios & Proportions',
+                  description: 'Foundational calculations, conversion shortcuts, and word problems',
+                  difficulty: 'easy',
+                  importance: 5,
+                  estimatedMinutes: 45,
+                  learningObjectives: ['Calculate percentage changes rapidly', 'Solve multi-variable ratio distributions'],
+                },
+                {
+                  title: 'Time, Speed, Distance & Work',
+                  description: 'Relative speed, trains, pipes, cisterns, and rate equations',
+                  difficulty: 'medium',
+                  importance: 5,
+                  estimatedMinutes: 50,
+                  learningObjectives: ['Formulate rate equations', 'Apply unit-rate method for work completion'],
+                },
+              ],
+            },
+            {
+              unitTitle: 'Unit 2: Algebra & Higher Maths',
+              topics: [
+                {
+                  title: 'Quadratic Equations & Progressions',
+                  description: 'Roots of equations, AP, GP, and algebraic factorizations',
+                  difficulty: 'hard',
+                  importance: 5,
+                  estimatedMinutes: 60,
+                  learningObjectives: ['Identify roots by discriminant analysis', 'Calculate nth term and series sums'],
+                },
+              ],
+            },
+          ],
+        },
+        {
+          name: 'Logical Reasoning & Data Interpretation',
+          code: 'LOGIC',
+          importance: 4,
+          color: colors[1],
+          description: 'Syllogisms, seating arrangements, coding-decoding, and charts.',
+          examDate: inputs.examDate || null,
+          units: [
+            {
+              unitTitle: 'Unit 1: Analytical Reasoning',
+              topics: [
+                {
+                  title: 'Linear & Circular Seating Arrangements',
+                  description: 'Step-by-step constraint satisfaction and grid diagrams',
+                  difficulty: 'medium',
+                  importance: 5,
+                  estimatedMinutes: 45,
+                  learningObjectives: ['Eliminate inconsistent possibilities', 'Draft definitive arrangement grids'],
+                },
+                {
+                  title: 'Syllogisms & Venn Logic',
+                  description: 'Deductive reasoning and Venn diagram test rules',
+                  difficulty: 'medium',
+                  importance: 4,
+                  estimatedMinutes: 45,
+                  learningObjectives: ['Verify valid conclusions from premise statements', 'Avoid common deductive fallacies'],
+                },
+              ],
+            },
+          ],
+        },
+      ];
+    }
+    // Case 4: Default Academic Subjects (College or School)
+    else {
+      const userSubjs = inputs.subjectNames && inputs.subjectNames.length > 0
+        ? inputs.subjectNames
+        : ['Computer Architecture', 'Data Structures & Algorithms'];
+
+      subjects = userSubjs.map((name, i) => ({
+        name,
+        code: name.replace(/[^A-Za-z]/g, '').slice(0, 4).toUpperCase() || `SUB${i + 1}`,
+        importance: 4,
+        color: colors[i % colors.length],
+        description: `Academic syllabus for ${name}`,
+        examDate: inputs.examDate || null,
+        units: [
+          {
+            unitTitle: 'Unit 1: Core Fundamentals & Principles',
+            topics: [
+              {
+                title: `${name} — Foundational Concepts`,
+                description: `Essential principles, definitions, and scope of ${name}`,
+                difficulty: 'easy',
+                importance: 4,
+                estimatedMinutes: 45,
+                learningObjectives: [`Understand basic definitions and terminology`, `Identify core theorems and frameworks`],
+              },
+              {
+                title: `${name} — Methodologies & Operations`,
+                description: `Operating procedures, key equations, and standard models`,
+                difficulty: 'medium',
+                importance: 5,
+                estimatedMinutes: 50,
+                learningObjectives: [`Analyze standard algorithmic/logical steps`, `Apply core formulas to sample problems`],
+              },
+            ],
+          },
+          {
+            unitTitle: 'Unit 2: Advanced Topics & Exam Applications',
+            topics: [
+              {
+                title: `${name} — High-Yield Exam Problems`,
+                description: `Complex case studies, proofs, and comprehensive problem sets`,
+                difficulty: 'hard',
+                importance: 5,
+                estimatedMinutes: 60,
+                learningObjectives: [`Synthesize multiple subtopics into solutions`, `Master time-constrained problem resolution`],
+              },
+            ],
+          },
+        ],
+      }));
+    }
+
+    // Calculate metrics
+    let totalTopics = 0;
+    let totalMinutes = 0;
+    subjects.forEach((s) => {
+      s.units.forEach((u) => {
+        totalTopics += u.topics.length;
+        u.topics.forEach((t) => {
+          totalMinutes += t.estimatedMinutes;
+        });
+      });
+    });
+
+    const totalHours = Math.round((totalMinutes / 60) * 10) / 10;
+    const dailyStudyMinutes = (inputs.dailyHours || 3) * 60;
+    const daysRequired = Math.ceil(totalMinutes / (dailyStudyMinutes * 0.8));
+
+    return {
+      disclaimer:
+        'AI-suggested curriculum proposal for study planning. Please review, adjust, or confirm before generating your workspace.',
+      subjects,
+      estimatedTotalTopics: totalTopics,
+      estimatedTotalHours: totalHours,
+      feasibilityAssessment: {
+        status: daysRequired <= 30 ? 'feasible' : 'tight',
+        score: daysRequired <= 30 ? 95 : 75,
+        explanation: `Curriculum spans ${totalTopics} bite-sized topics (~${totalHours} study hours). At ${inputs.dailyHours || 3} hours/day, you will complete the full syllabus in approximately ${daysRequired} study days with built-in revision.`,
+      },
+    };
   },
 
   /**
