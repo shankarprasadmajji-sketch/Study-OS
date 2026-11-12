@@ -24,10 +24,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
   // Exactly the 7 core navigation items requested for clean student usability
   const navItems = [
     { name: 'Dashboard', path: '/app/dashboard', icon: LayoutDashboard },
-    { name: 'My Subjects', path: '/app/subjects', icon: BookOpen },
+    { name: 'Subjects', path: '/app/subjects', icon: BookOpen },
     { name: 'Timetable', path: '/app/timetable', icon: CalendarDays },
     { name: 'AI Study Plan', path: '/app/study-plan', icon: Sparkles },
-    { name: 'My Notes', path: '/app/notes', icon: FileText },
+    { name: 'Notes', path: '/app/notes', icon: FileText },
     { name: 'Progress', path: '/app/progress', icon: BarChart3 },
     { name: 'Settings', path: '/app/settings', icon: Settings },
   ];
